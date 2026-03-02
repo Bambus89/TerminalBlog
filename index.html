@@ -400,12 +400,32 @@
       color: var(--green);
     }
 
+    .status-badge[data-status="offline"] {
+      background: rgba(251, 73, 52, 0.12);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .status-badge[data-status="abwesend"] {
+      background: rgba(254, 128, 25, 0.12);
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+
     .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
       background: var(--green);
       animation: pulse 2s infinite;
+    }
+
+    .status-badge[data-status="offline"] .status-dot {
+      background: var(--red);
+    }
+
+    .status-badge[data-status="abwesend"] .status-dot {
+      background: var(--orange);
     }
 
     @keyframes pulse {
@@ -1274,6 +1294,13 @@
       document.getElementById('hero-subtitle').textContent = cfg.jobtitle + ' · ' + cfg.branche;
       document.getElementById('hero-location').textContent = cfg.standort;
       document.getElementById('hero-status').textContent = cfg.status;
+      var statusBadge = document.querySelector('.status-badge');
+      if (statusBadge) {
+        var s = (cfg.status || '').toLowerCase().trim();
+        if (s === 'offline') statusBadge.setAttribute('data-status', 'offline');
+        else if (s === 'abwesend') statusBadge.setAttribute('data-status', 'abwesend');
+        else statusBadge.removeAttribute('data-status');
+      }
 
       // Terminal prompts dynamisch setzen
       var user = cfg.terminal ? cfg.terminal.user : 'user';

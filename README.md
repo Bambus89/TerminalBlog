@@ -17,7 +17,11 @@ Eine moderne, responsive Einzelseiten-Website im Terminal-Stil mit Gruvbox-Theme
 ### Site Manager (`site-manager/`)
 - Go TUI-Anwendung im Midnight-Commander-Stil
 - Bearbeitung aller JSON-Dateien (Config, Blog, Impressum, Datenschutz)
-- SSH/SFTP-Verbindung für Remote-Server
+- Theme-Editor mit Farbpalette und Hex-Eingabe (Dark + Light Mode)
+- SSH/SFTP-Profilverwaltung mit AES-256-verschlüsselten Passwörtern
+- Status-Auswahl (online/abwesend/offline) mit farbiger Anzeige
+- Meta-Description und Seitentitel werden direkt in der HTML aktualisiert
+- Datenschutz-Stand editierbar
 - Farbpalette für Kategorie-Farben
 - Wartungsmodus Ein/Aus-Schalter
 - Document Root zur Laufzeit änderbar

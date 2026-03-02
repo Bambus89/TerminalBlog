@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -255,6 +256,19 @@ func saveSSHProfiles() error {
 		return err
 	}
 	return os.WriteFile(sshProfilesPath(), data, 0600) // nur Owner lesen/schreiben
+}
+
+// defaultDocRoot gibt den Standard-Pfad je nach OS zurück
+func defaultDocRoot() string {
+	if runtime.GOOS == "windows" {
+		// Unter Windows: Verzeichnis der .exe verwenden
+		exe, err := os.Executable()
+		if err == nil {
+			return filepath.Dir(exe)
+		}
+		return "."
+	}
+	return "/var/www/html"
 }
 
 // ===== Connection Mode =====
@@ -539,11 +553,26 @@ func goBack() {
 	pages.SwitchToPage("main")
 }
 
-// addEscapeHandler fügt Escape-Handler zu einem Form hinzu
+// addEscapeHandler fügt Escape-Handler zu einem Form hinzu (ohne Speichern-Shortcut)
 func addFormEscape(form *tview.Form, backFn func()) {
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			backFn()
+			return nil
+		}
+		return event
+	})
+}
+
+// addFormShortcuts fügt Escape + Ctrl+S Handler zu einem Form hinzu
+func addFormShortcuts(form *tview.Form, backFn func(), saveFn func()) {
+	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			backFn()
+			return nil
+		}
+		if event.Key() == tcell.KeyCtrlS && saveFn != nil {
+			saveFn()
 			return nil
 		}
 		return event
@@ -686,7 +715,7 @@ func buildMainMenu() tview.Primitive {
 	header := styledTextView()
 	header.SetTextAlign(tview.AlignCenter)
 	header.SetBorder(false)
-	header.SetText(fmt.Sprintf("[#b8bb26]Site Manager[#a89984] v3.0\n%s", connInfo()))
+	header.SetText(fmt.Sprintf("[#b8bb26]Site Manager[#a89984] v4.2\n%s", connInfo()))
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(header, 3, 0, false).
@@ -942,7 +971,7 @@ func buildSSHForm(existing *SSHProfile, editIdx int) tview.Primitive {
 	defaultHost := ""
 	defaultPort := "22"
 	defaultUser := ""
-	defaultPath := "/var/www/html"
+	defaultPath := defaultDocRoot()
 	defaultKeyPath := ""
 
 	home, _ := os.UserHomeDir()
@@ -1013,7 +1042,7 @@ func buildSSHForm(existing *SSHProfile, editIdx int) tview.Primitive {
 		doSSHConnect(profile, password)
 	})
 
-	form.AddButton("Speichern", func() {
+	sshSaveFn := func() {
 		profileName := form.GetFormItemByLabel("Profilname").(*tview.InputField).GetText()
 		host := form.GetFormItemByLabel("Host").(*tview.InputField).GetText()
 		port := form.GetFormItemByLabel("Port").(*tview.InputField).GetText()
@@ -1077,16 +1106,17 @@ func buildSSHForm(existing *SSHProfile, editIdx int) tview.Primitive {
 			return
 		}
 		showMessage("Gespeichert", fmt.Sprintf("Profil \"%s\" wurde gespeichert.", profileName))
-	})
+	}
+	form.AddButton("Speichern", sshSaveFn)
 
-	addFormEscape(form, func() {
+	addFormShortcuts(form, func() {
 		navigateTo("ssh", buildSSHList)
-	})
+	}, sshSaveFn)
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 0, 1, true).
 		AddItem(statusText, 3, 0, false).
-		AddItem(statusBar("Tab: Nächstes Feld │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Tab: Nächstes Feld │ Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -1222,13 +1252,14 @@ func buildThemeEditor() tview.Primitive {
 				opForm.AddButton("Zurück", func() {
 					navigateTo("theme", buildThemeEditor)
 				})
-				opForm.AddButton("Speichern", func() {
+				opSaveFn := func() {
 					t.GridOpacity = opForm.GetFormItemByLabel("Opacity (0.0 - 1.0)").(*tview.InputField).GetText()
 					navigateTo("theme", buildThemeEditor)
-				})
-				addFormEscape(opForm, func() {
+				}
+				opForm.AddButton("Speichern", opSaveFn)
+				addFormShortcuts(opForm, func() {
 					navigateTo("theme", buildThemeEditor)
-				})
+				}, opSaveFn)
 				return opForm
 			})
 			return nil
@@ -1283,10 +1314,33 @@ func buildThemeColorPicker(label, key string, getVal func() string, setVal func(
 		}
 	})
 
+	// Save-Funktion für Ctrl+S
+	themeApplyFn := func() {
+		hex := form.GetFormItemByLabel("Hex-Farbcode").(*tview.InputField).GetText()
+		if hex != "" && hex[0] != '#' {
+			hex = "#" + hex
+		}
+		setVal(hex)
+		navigateTo("theme", buildThemeEditor)
+	}
+
+	form.AddButton("Zurück", func() {
+		navigateTo("theme", buildThemeEditor)
+	})
+	form.AddButton("Übernehmen", themeApplyFn)
+	form.AddButton("Standard", func() {
+		setVal("")
+		navigateTo("theme", buildThemeEditor)
+	})
+
 	// Tab-Cycling
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			navigateTo("theme", buildThemeEditor)
+			return nil
+		}
+		if event.Key() == tcell.KeyCtrlS {
+			themeApplyFn()
 			return nil
 		}
 		if event.Key() == tcell.KeyTab {
@@ -1303,6 +1357,10 @@ func buildThemeColorPicker(label, key string, getVal func() string, setVal func(
 			navigateTo("theme", buildThemeEditor)
 			return nil
 		}
+		if event.Key() == tcell.KeyCtrlS {
+			themeApplyFn()
+			return nil
+		}
 		if event.Key() == tcell.KeyTab || event.Key() == tcell.KeyBacktab {
 			app.SetFocus(form)
 			return nil
@@ -1310,27 +1368,11 @@ func buildThemeColorPicker(label, key string, getVal func() string, setVal func(
 		return event
 	})
 
-	form.AddButton("Zurück", func() {
-		navigateTo("theme", buildThemeEditor)
-	})
-	form.AddButton("Übernehmen", func() {
-		hex := form.GetFormItemByLabel("Hex-Farbcode").(*tview.InputField).GetText()
-		if hex != "" && hex[0] != '#' {
-			hex = "#" + hex
-		}
-		setVal(hex)
-		navigateTo("theme", buildThemeEditor)
-	})
-	form.AddButton("Standard", func() {
-		setVal("")
-		navigateTo("theme", buildThemeEditor)
-	})
-
 	palHeight := (len(colorPalette)+palCols-1)/palCols + 2
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 7, 0, true).
 		AddItem(palTable, palHeight, 0, false).
-		AddItem(statusBar("Hex eingeben oder Farbe aus Palette wählen │ Tab: Palette │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Hex eingeben oder Palette wählen │ Tab: Palette │ Ctrl+S: Übernehmen │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -1349,7 +1391,17 @@ func buildConfigEditor() tview.Primitive {
 	form.AddInputField("Jobtitel", config.JobTitle, 40, nil, func(text string) { config.JobTitle = text })
 	form.AddInputField("Branche", config.Branche, 40, nil, func(text string) { config.Branche = text })
 	form.AddInputField("Standort", config.Standort, 40, nil, func(text string) { config.Standort = text })
-	form.AddInputField("Status", config.Status, 20, nil, func(text string) { config.Status = text })
+	statusOptions := []string{"online", "abwesend", "offline"}
+	statusIdx := 0
+	for i, s := range statusOptions {
+		if strings.EqualFold(s, config.Status) {
+			statusIdx = i
+			break
+		}
+	}
+	form.AddDropDown("Status", statusOptions, statusIdx, func(option string, index int) {
+		config.Status = option
+	})
 
 	form.AddInputField("E-Mail", config.Kontakt.Email, 40, nil, func(text string) { config.Kontakt.Email = text })
 	form.AddInputField("Telefon", config.Kontakt.Telefon, 30, nil, func(text string) { config.Kontakt.Telefon = text })
@@ -1382,22 +1434,23 @@ func buildConfigEditor() tview.Primitive {
 	form.AddButton("Zurück", func() {
 		navigateTo("main", buildMainMenu)
 	})
-	form.AddButton("Speichern", func() {
+	cfgSaveFn := func() {
 		if err := saveJSON("config.json", config); err != nil {
 			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
 		} else {
 			updateIndexHTML(config)
 			showMessage("Gespeichert", "config.json + index.html wurden aktualisiert.")
 		}
-	})
+	}
+	form.AddButton("Speichern", cfgSaveFn)
 
-	addFormEscape(form, func() {
+	addFormShortcuts(form, func() {
 		navigateTo("main", buildMainMenu)
-	})
+	}, cfgSaveFn)
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 0, 1, true).
-		AddItem(statusBar("Tab: Nächstes Feld │ Shift+Tab: Vorheriges │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Tab: Nächstes Feld │ Shift+Tab: Vorheriges │ Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -1419,7 +1472,7 @@ func buildWartungEditor() tview.Primitive {
 	form.AddButton("Zurück", func() {
 		navigateTo("main", buildMainMenu)
 	})
-	form.AddButton("Speichern", func() {
+	wartSaveFn := func() {
 		if err := saveJSON("config.json", config); err != nil {
 			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
 		} else {
@@ -1430,11 +1483,12 @@ func buildWartungEditor() tview.Primitive {
 			}
 			showMessage("Gespeichert", fmt.Sprintf("Wartungsmodus: %s", statusText))
 		}
-	})
+	}
+	form.AddButton("Speichern", wartSaveFn)
 
-	addFormEscape(form, func() {
+	addFormShortcuts(form, func() {
 		navigateTo("main", buildMainMenu)
-	})
+	}, wartSaveFn)
 
 	// Vorschau – wird bei jedem Öffnen neu erstellt
 	preview := styledTextView()
@@ -1448,7 +1502,7 @@ func buildWartungEditor() tview.Primitive {
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 10, 0, true).
 		AddItem(preview, 5, 0, false).
-		AddItem(statusBar("Tab: Navigation │ Leertaste: Checkbox │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Tab: Navigation │ Leertaste: Checkbox │ Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
 
 	return flex
 }
@@ -1607,19 +1661,24 @@ func buildBlogEditor(index int) tview.Primitive {
 		navigateTo("blog-list", buildBlogList)
 	}
 
-	form.AddButton("Zurück", blogBackFn)
-	form.AddButton("Speichern", func() {
+	blogSaveFn := func() {
 		if err := saveJSON("blog.json", blog); err != nil {
 			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
 		} else {
 			showMessage("Gespeichert", fmt.Sprintf("Post \"%s\" wurde gespeichert.", post.Title))
 		}
-	})
+	}
+	form.AddButton("Zurück", blogBackFn)
+	form.AddButton("Speichern", blogSaveFn)
 
 	// Tab-Cycling: Form → Kategorien-Grid → Form
 	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			blogBackFn()
+			return nil
+		}
+		if event.Key() == tcell.KeyCtrlS {
+			blogSaveFn()
 			return nil
 		}
 		if event.Key() == tcell.KeyTab {
@@ -1648,6 +1707,10 @@ func buildBlogEditor(index int) tview.Primitive {
 			blogBackFn()
 			return nil
 		}
+		if event.Key() == tcell.KeyCtrlS {
+			blogSaveFn()
+			return nil
+		}
 		// Tab oder Backtab → zurück zum Form
 		if event.Key() == tcell.KeyTab || event.Key() == tcell.KeyBacktab {
 			app.SetFocus(form)
@@ -1663,7 +1726,7 @@ func buildBlogEditor(index int) tview.Primitive {
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 0, 1, true).
 		AddItem(catTable, catHeight, 0, false).
-		AddItem(statusBar("Tab: Formular ↔ Kategorien │ Leertaste/Enter: umschalten │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Tab: Formular ↔ Kategorien │ Leertaste/Enter: umschalten │ Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -1769,16 +1832,17 @@ func buildCategoryEditor(index int) tview.Primitive {
 	form.AddInputField("Farbe (Hex)", cat.Color, 10, nil, func(text string) { cat.Color = text })
 	colorField = form.GetFormItemByLabel("Farbe (Hex)").(*tview.InputField)
 
-	form.AddButton("Zurück", func() {
-		navigateTo("category-list", buildCategoryList)
-	})
-	form.AddButton("Speichern", func() {
+	catSaveFn := func() {
 		if err := saveJSON("blog.json", blog); err != nil {
 			showMessage("Fehler", err.Error())
 		} else {
 			showMessage("Gespeichert", fmt.Sprintf("Kategorie \"%s\" gespeichert.", cat.Name))
 		}
+	}
+	form.AddButton("Zurück", func() {
+		navigateTo("category-list", buildCategoryList)
 	})
+	form.AddButton("Speichern", catSaveFn)
 
 	// Farbvorschau
 	previewText := styledTextView()
@@ -1838,6 +1902,10 @@ func buildCategoryEditor(index int) tview.Primitive {
 			backFn()
 			return nil
 		}
+		if event.Key() == tcell.KeyCtrlS {
+			catSaveFn()
+			return nil
+		}
 		// Tab auf letztem Button → Fokus zur Farbpalette
 		if event.Key() == tcell.KeyTab {
 			_, btnIdx := form.GetFocusedItemIndex()
@@ -1852,6 +1920,10 @@ func buildCategoryEditor(index int) tview.Primitive {
 	palTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			backFn()
+			return nil
+		}
+		if event.Key() == tcell.KeyCtrlS {
+			catSaveFn()
 			return nil
 		}
 		// Shift+Tab oder Backtab → zurück zum Form
@@ -1873,7 +1945,7 @@ func buildCategoryEditor(index int) tview.Primitive {
 		AddItem(form, 10, 0, true).
 		AddItem(palTable, palHeight, 0, false).
 		AddItem(previewText, 3, 0, false).
-		AddItem(statusBar("Tab: Formular ↔ Farbpalette │ Enter: Farbe/Speichern │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusBar("Tab: Formular ↔ Farbpalette │ Enter: Farbe/Speichern │ Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -2000,26 +2072,27 @@ func buildStandEditor(pageName string, data *LegalData, filename string) tview.P
 
 	form.AddInputField("Stand", data.Stand, 30, nil, func(text string) { data.Stand = text })
 
-	addFormEscape(form, func() {
+	standBackFn := func() {
 		navigateTo(pageName, func() tview.Primitive {
 			return buildLegalList(pageName, data, filename)
 		})
-	})
-
-	form.AddButton("Zurück", func() {
-		navigateTo(pageName, func() tview.Primitive {
-			return buildLegalList(pageName, data, filename)
-		})
-	})
-	form.AddButton("Speichern", func() {
+	}
+	standSaveFn := func() {
 		if err := saveJSON(filename, data); err != nil {
 			showMessage("Fehler", err.Error())
 			return
 		}
 		showMessage("Gespeichert", "Stand wurde aktualisiert.")
-	})
+	}
 
-	return form
+	form.AddButton("Zurück", standBackFn)
+	form.AddButton("Speichern", standSaveFn)
+	addFormShortcuts(form, standBackFn, standSaveFn)
+
+	layout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(form, 0, 1, true).
+		AddItem(statusBar("Ctrl+S: Speichern │ Esc: Zurück"), 1, 0, false)
+	return layout
 }
 
 func buildLegalSectionEditor(pageName string, data *LegalData, filename string, index int) tview.Primitive {
@@ -2039,19 +2112,20 @@ func buildLegalSectionEditor(pageName string, data *LegalData, filename string, 
 			return buildLegalList(pageName, data, filename)
 		})
 	}
-	form.AddButton("Zurück", backFn)
-	form.AddButton("Speichern", func() {
+	legalSaveFn := func() {
 		if err := saveJSON(filename, data); err != nil {
 			showMessage("Fehler", err.Error())
 		} else {
 			showMessage("Gespeichert", fmt.Sprintf("Abschnitt \"%s\" gespeichert.", section.Ueberschrift))
 		}
-	})
-	addFormEscape(form, backFn)
+	}
+	form.AddButton("Zurück", backFn)
+	form.AddButton("Speichern", legalSaveFn)
+	addFormShortcuts(form, backFn, legalSaveFn)
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 0, 1, true).
-		AddItem(statusBar("Tab: Navigation │ Enter: Speichern │ Esc: Zurück │ {{impressum.*}} Platzhalter werden automatisch ersetzt"), 1, 0, false)
+		AddItem(statusBar("Tab: Navigation │ Ctrl+S: Speichern │ Esc: Zurück │ {{impressum.*}} Platzhalter werden automatisch ersetzt"), 1, 0, false)
 
 	return layout
 }
@@ -2060,12 +2134,13 @@ func buildLegalSectionEditor(pageName string, data *LegalData, filename string, 
 
 func main() {
 	// CLI Flags
-	flag.StringVar(&docRoot, "root", "/var/www/html", "Document Root – Pfad zum Verzeichnis mit den JSON-Dateien")
-	flag.StringVar(&docRoot, "r", "/var/www/html", "Document Root (Kurzform)")
+	defRoot := defaultDocRoot()
+	flag.StringVar(&docRoot, "root", defRoot, "Document Root – Pfad zum Verzeichnis mit den JSON-Dateien")
+	flag.StringVar(&docRoot, "r", defRoot, "Document Root (Kurzform)")
 	flag.Parse()
 
 	// Auch erstes Argument ohne Flag als Root akzeptieren
-	if flag.NArg() > 0 && docRoot == "/var/www/html" {
+	if flag.NArg() > 0 && docRoot == defRoot {
 		docRoot = flag.Arg(0)
 	}
 
