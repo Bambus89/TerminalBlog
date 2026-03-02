@@ -1,6 +1,11 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +30,8 @@ type Config struct {
 	Name         string          `json:"name"`
 	Initials     string          `json:"initials"`
 	Seitentitel  string          `json:"seitentitel,omitempty"`
+	Beschreibung string          `json:"beschreibung,omitempty"`
+	CopyrightJahr string         `json:"copyright_jahr,omitempty"`
 	JobTitle     string          `json:"jobtitle"`
 	Branche      string          `json:"branche"`
 	Bio          string          `json:"bio"`
@@ -35,6 +43,32 @@ type Config struct {
 	Skills       []string        `json:"skills"`
 	Impressum    ConfigImpressum `json:"impressum"`
 	Terminal     ConfigTerminal  `json:"terminal"`
+	Theme        ConfigTheme     `json:"theme,omitempty"`
+}
+
+type ConfigTheme struct {
+	Bg            string `json:"bg,omitempty"`
+	BgPanel       string `json:"bg_panel,omitempty"`
+	BgCard        string `json:"bg_card,omitempty"`
+	BgCardHover   string `json:"bg_card_hover,omitempty"`
+	Green         string `json:"green,omitempty"`
+	GreenDim      string `json:"green_dim,omitempty"`
+	Text          string `json:"text,omitempty"`
+	TextDim       string `json:"text_dim,omitempty"`
+	TextMuted     string `json:"text_muted,omitempty"`
+	Border        string `json:"border,omitempty"`
+	Cyan          string `json:"cyan,omitempty"`
+	Yellow        string `json:"yellow,omitempty"`
+	Orange        string `json:"orange,omitempty"`
+	Red           string `json:"red,omitempty"`
+	GridOpacity   string `json:"grid_opacity,omitempty"`
+	GridShow      *bool  `json:"grid_show,omitempty"`
+	LightBg       string `json:"light_bg,omitempty"`
+	LightBgPanel  string `json:"light_bg_panel,omitempty"`
+	LightBgCard   string `json:"light_bg_card,omitempty"`
+	LightGreen    string `json:"light_green,omitempty"`
+	LightText     string `json:"light_text,omitempty"`
+	LightTextDim  string `json:"light_text_dim,omitempty"`
 }
 
 type ConfigKontakt struct {
@@ -112,6 +146,115 @@ type LegalSection struct {
 	Nr           string `json:"nr,omitempty"`
 	Ueberschrift string `json:"ueberschrift"`
 	Inhalt       string `json:"inhalt"`
+}
+
+// ===== SSH-Profile (verschlüsselt) =====
+
+type SSHProfile struct {
+	Name       string `json:"name"`
+	Host       string `json:"host"`
+	Port       string `json:"port"`
+	User       string `json:"user"`
+	AuthMethod string `json:"auth_method"`
+	KeyPath    string `json:"key_path,omitempty"`
+	RemotePath string `json:"remote_path"`
+	EncPass    string `json:"enc_pass,omitempty"` // AES-256-GCM verschlüsselt, base64
+	Salt       string `json:"salt,omitempty"`     // base64
+}
+
+type SSHProfileStore struct {
+	Profiles []SSHProfile `json:"profiles"`
+}
+
+var sshProfiles SSHProfileStore
+
+// deriveKey leitet aus Master-Passwort + Salt einen AES-256 Key ab (SHA-256 basiert)
+func deriveKey(master string, salt []byte) []byte {
+	h := sha256.New()
+	h.Write(salt)
+	h.Write([]byte(master))
+	return h.Sum(nil) // 32 Bytes = AES-256
+}
+
+func encryptPassword(password, master string) (encB64, saltB64 string, err error) {
+	salt := make([]byte, 16)
+	if _, err = rand.Read(salt); err != nil {
+		return
+	}
+	key := deriveKey(master, salt)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = rand.Read(nonce); err != nil {
+		return
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(password), nil)
+	encB64 = base64.StdEncoding.EncodeToString(ciphertext)
+	saltB64 = base64.StdEncoding.EncodeToString(salt)
+	return
+}
+
+func decryptPassword(encB64, saltB64, master string) (string, error) {
+	ciphertext, err := base64.StdEncoding.DecodeString(encB64)
+	if err != nil {
+		return "", fmt.Errorf("Base64-Decode: %w", err)
+	}
+	salt, err := base64.StdEncoding.DecodeString(saltB64)
+	if err != nil {
+		return "", fmt.Errorf("Salt-Decode: %w", err)
+	}
+	key := deriveKey(master, salt)
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", fmt.Errorf("Ciphertext zu kurz")
+	}
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("Entschlüsselung fehlgeschlagen (falsches Master-Passwort?)")
+	}
+	return string(plaintext), nil
+}
+
+func sshProfilesPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "ssh.json"
+	}
+	return filepath.Join(filepath.Dir(exe), "ssh.json")
+}
+
+func loadSSHProfiles() {
+	data, err := os.ReadFile(sshProfilesPath())
+	if err != nil {
+		sshProfiles = SSHProfileStore{}
+		return
+	}
+	if err := json.Unmarshal(data, &sshProfiles); err != nil {
+		sshProfiles = SSHProfileStore{}
+	}
+}
+
+func saveSSHProfiles() error {
+	data, err := json.MarshalIndent(sshProfiles, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(sshProfilesPath(), data, 0600) // nur Owner lesen/schreiben
 }
 
 // ===== Connection Mode =====
@@ -270,6 +413,34 @@ func saveJSON(filename string, data interface{}) error {
 		return err
 	}
 	return writeFileBytes(jsonPath(filename), bytes)
+}
+
+// updateIndexHTML aktualisiert meta-description und title in der index.html
+func updateIndexHTML(cfg Config) {
+	indexPath := jsonPath("index.html")
+	data, err := readFileBytes(indexPath)
+	if err != nil {
+		return // index.html nicht vorhanden – kein Fehler
+	}
+	html := string(data)
+
+	// Meta-Description ersetzen
+	if cfg.Beschreibung != "" {
+		reDesc := regexp.MustCompile(`(<meta\s+name="description"\s+content=")([^"]*)(">)`)
+		html = reDesc.ReplaceAllString(html, `${1}`+regexp.QuoteMeta(cfg.Beschreibung)+`${3}`)
+	}
+
+	// Title-Tag ersetzen
+	titel := cfg.Seitentitel
+	if titel == "" {
+		titel = cfg.Name
+	}
+	if titel != "" {
+		reTitle := regexp.MustCompile(`(<title>)(.*?)(</title>)`)
+		html = reTitle.ReplaceAllString(html, `${1}`+regexp.QuoteMeta(titel)+`${3}`)
+	}
+
+	_ = writeFileBytes(indexPath, []byte(html))
 }
 
 func loadAll() {
@@ -493,8 +664,11 @@ func buildMainMenu() tview.Primitive {
 	menu.AddItem("📂  Document Root", fmt.Sprintf("Aktuell: %s", docRoot), 'p', func() {
 		navigateTo("docroot", buildDocRootChanger)
 	})
+	menu.AddItem("🎨  Theme", "Farben und Hintergrund anpassen", 'f', func() {
+		navigateTo("theme", buildThemeEditor)
+	})
 	menu.AddItem("🔗  SSH/SFTP Verbindung", "Remote-Server verbinden", 's', func() {
-		navigateTo("ssh", buildSSHForm)
+		navigateTo("ssh", buildSSHList)
 	})
 	menu.AddItem("↺  Neu laden", "Alle JSON-Dateien neu einlesen", 'r', func() {
 		loadAll()
@@ -586,21 +760,185 @@ func buildDocRootChanger() tview.Primitive {
 
 // ===== SSH/SFTP Verbindung =====
 
-func buildSSHForm() tview.Primitive {
-	form := styledForm()
-	form.SetTitle(" 🔗 SSH/SFTP Verbindung ")
+func buildSSHList() tview.Primitive {
+	list := styledList()
+	list.SetTitle(fmt.Sprintf(" 🔗 SSH/SFTP Profile (%d) ", len(sshProfiles.Profiles)))
 
 	// Status-Anzeige
-	statusText := styledTextView()
-	statusText.SetTitle(" Status ")
 	if connMode == ConnSSH && sshConn != nil {
-		statusText.SetText(fmt.Sprintf("[#b8bb26]● Verbunden mit %s@%s:%s\n[#a89984]Remote-Pfad: %s",
-			sshConn.User, sshConn.Host, sshConn.Port, sshConn.RemotePath))
-	} else {
-		statusText.SetText("[#a89984]Keine SSH-Verbindung aktiv (lokaler Modus)")
+		list.AddItem(fmt.Sprintf("[#b8bb26]● Verbunden: %s@%s:%s", sshConn.User, sshConn.Host, sshConn.Port),
+			fmt.Sprintf("Remote-Pfad: %s", sshConn.RemotePath), 0, nil)
 	}
 
+	// Gespeicherte Profile auflisten
+	for i, p := range sshProfiles.Profiles {
+		idx := i
+		profile := p
+		hasPass := ""
+		if profile.EncPass != "" {
+			hasPass = " 🔒"
+		}
+		list.AddItem(
+			fmt.Sprintf("[#83a598]%s[white] – %s@%s:%s%s", profile.Name, profile.User, profile.Host, profile.Port, hasPass),
+			fmt.Sprintf("Pfad: %s │ Auth: %s", profile.RemotePath, profile.AuthMethod),
+			0,
+			func() {
+				connectSSHProfile(idx, profile)
+			},
+		)
+	}
+
+	list.AddItem("[#b8bb26]＋ Neue Verbindung", "Manuell verbinden oder neues Profil anlegen", 'n', func() {
+		navigateTo("ssh-form", func() tview.Primitive {
+			return buildSSHForm(nil, -1)
+		})
+	})
+
+	if connMode == ConnSSH {
+		list.AddItem("[#fb4934]⊘ Verbindung trennen", "Zurück zum lokalen Modus", 't', func() {
+			if sshConn != nil {
+				sshConn.Close()
+			}
+			sshConn = nil
+			connMode = ConnLocal
+			loadAll()
+			navigateTo("ssh", buildSSHList)
+		})
+	}
+
+	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			navigateTo("main", buildMainMenu)
+			return nil
+		}
+		if event.Key() == tcell.KeyDelete || event.Rune() == 'x' {
+			idx := list.GetCurrentItem()
+			// Offset: verbundene Statuszeile am Anfang
+			offset := 0
+			if connMode == ConnSSH && sshConn != nil {
+				offset = 1
+			}
+			adjIdx := idx - offset
+			if adjIdx >= 0 && adjIdx < len(sshProfiles.Profiles) {
+				pName := sshProfiles.Profiles[adjIdx].Name
+				showConfirm("Löschen", fmt.Sprintf("Profil \"%s\" wirklich löschen?", pName), func() {
+					sshProfiles.Profiles = append(sshProfiles.Profiles[:adjIdx], sshProfiles.Profiles[adjIdx+1:]...)
+					_ = saveSSHProfiles()
+					navigateTo("ssh", buildSSHList)
+				})
+			}
+			return nil
+		}
+		if event.Rune() == 'e' {
+			idx := list.GetCurrentItem()
+			offset := 0
+			if connMode == ConnSSH && sshConn != nil {
+				offset = 1
+			}
+			adjIdx := idx - offset
+			if adjIdx >= 0 && adjIdx < len(sshProfiles.Profiles) {
+				navigateTo("ssh-form", func() tview.Primitive {
+					return buildSSHForm(&sshProfiles.Profiles[adjIdx], adjIdx)
+				})
+			}
+			return nil
+		}
+		return event
+	})
+
+	layout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(list, 0, 1, true).
+		AddItem(statusBar("Enter: Verbinden │ n: Neu │ e: Bearbeiten │ x: Löschen │ t: Trennen │ Esc: Zurück"), 1, 0, false)
+
+	return layout
+}
+
+func connectSSHProfile(idx int, profile SSHProfile) {
+	password := ""
+
+	// Passwort entschlüsseln wenn vorhanden
+	if profile.EncPass != "" {
+		// Master-Passwort abfragen
+		masterForm := styledForm()
+		masterForm.SetTitle(" 🔑 Master-Passwort ")
+		masterForm.AddPasswordField("Master-Passwort", "", 40, '*', nil)
+
+		masterForm.AddButton("Zurück", func() {
+			navigateTo("ssh", buildSSHList)
+		})
+		masterForm.AddButton("Entsperren", func() {
+			master := masterForm.GetFormItemByLabel("Master-Passwort").(*tview.InputField).GetText()
+			decrypted, err := decryptPassword(profile.EncPass, profile.Salt, master)
+			if err != nil {
+				showMessage("Fehler", "Falsches Master-Passwort oder beschädigte Daten.")
+				return
+			}
+			doSSHConnect(profile, decrypted)
+		})
+
+		addFormEscape(masterForm, func() {
+			navigateTo("ssh", buildSSHList)
+		})
+
+		navigateTo("ssh-master", func() tview.Primitive {
+			return masterForm
+		})
+		return
+	}
+
+	// Key-basiert ohne Passwort
+	doSSHConnect(profile, password)
+}
+
+func doSSHConnect(profile SSHProfile, password string) {
+	if sshConn != nil {
+		sshConn.Close()
+	}
+
+	sshConn = &SSHConnection{
+		Host:       profile.Host,
+		Port:       profile.Port,
+		User:       profile.User,
+		AuthMethod: profile.AuthMethod,
+		Password:   password,
+		KeyPath:    profile.KeyPath,
+		RemotePath: profile.RemotePath,
+	}
+
+	if err := sshConn.Connect(); err != nil {
+		showMessage("Fehler", fmt.Sprintf("Verbindung fehlgeschlagen:\n%s", err.Error()))
+		sshConn = nil
+		return
+	}
+
+	isDir, err := sshConn.StatDir(profile.RemotePath)
+	if err != nil || !isDir {
+		showMessage("Fehler", fmt.Sprintf("Remote-Pfad nicht gefunden: %s", profile.RemotePath))
+		sshConn.Close()
+		sshConn = nil
+		return
+	}
+
+	connMode = ConnSSH
+	loadAll()
+	showMessage("Verbunden", fmt.Sprintf("Verbunden mit %s@%s:%s\nRemote-Pfad: %s\nDateien geladen!",
+		profile.User, profile.Host, profile.Port, profile.RemotePath))
+}
+
+func buildSSHForm(existing *SSHProfile, editIdx int) tview.Primitive {
+	form := styledForm()
+	if existing != nil {
+		form.SetTitle(fmt.Sprintf(" ✎ Profil: %s ", existing.Name))
+	} else {
+		form.SetTitle(" 🔗 Neue SSH/SFTP Verbindung ")
+	}
+
+	statusText := styledTextView()
+	statusText.SetTitle(" Status ")
+	statusText.SetText("[#a89984]Verbindungsdaten eingeben")
+
 	// Vorausgefüllte Werte
+	defaultName := ""
 	defaultHost := ""
 	defaultPort := "22"
 	defaultUser := ""
@@ -612,34 +950,33 @@ func buildSSHForm() tview.Primitive {
 		defaultKeyPath = filepath.Join(home, ".ssh", "id_rsa")
 	}
 
-	if sshConn != nil {
-		if sshConn.Host != "" {
-			defaultHost = sshConn.Host
+	authIdx := 0
+	if existing != nil {
+		defaultName = existing.Name
+		defaultHost = existing.Host
+		defaultPort = existing.Port
+		defaultUser = existing.User
+		defaultPath = existing.RemotePath
+		if existing.KeyPath != "" {
+			defaultKeyPath = existing.KeyPath
 		}
-		if sshConn.Port != "" {
-			defaultPort = sshConn.Port
-		}
-		if sshConn.User != "" {
-			defaultUser = sshConn.User
-		}
-		if sshConn.RemotePath != "" {
-			defaultPath = sshConn.RemotePath
-		}
-		if sshConn.KeyPath != "" {
-			defaultKeyPath = sshConn.KeyPath
+		if existing.AuthMethod == "password" {
+			authIdx = 1
 		}
 	}
 
+	form.AddInputField("Profilname", defaultName, 30, nil, nil)
 	form.AddInputField("Host", defaultHost, 40, nil, nil)
 	form.AddInputField("Port", defaultPort, 8, nil, nil)
 	form.AddInputField("Benutzer", defaultUser, 30, nil, nil)
-	form.AddDropDown("Authentifizierung", []string{"SSH-Key", "Passwort"}, 0, nil)
+	form.AddDropDown("Authentifizierung", []string{"SSH-Key", "Passwort"}, authIdx, nil)
 	form.AddInputField("Key-Pfad", defaultKeyPath, 50, nil, nil)
 	form.AddPasswordField("Passwort/Passphrase", "", 40, '*', nil)
 	form.AddInputField("Remote-Pfad", defaultPath, 50, nil, nil)
+	form.AddPasswordField("Master-Passwort (für Speichern)", "", 40, '*', nil)
 
 	form.AddButton("Zurück", func() {
-		navigateTo("main", buildMainMenu)
+		navigateTo("ssh", buildSSHList)
 	})
 
 	form.AddButton("Verbinden", func() {
@@ -659,9 +996,44 @@ func buildSSHForm() tview.Primitive {
 			port = "22"
 		}
 
-		// Alte Verbindung schließen
-		if sshConn != nil {
-			sshConn.Close()
+		authMethod := "key"
+		if authOpt == "Passwort" {
+			authMethod = "password"
+		}
+
+		profile := SSHProfile{
+			Name:       form.GetFormItemByLabel("Profilname").(*tview.InputField).GetText(),
+			Host:       host,
+			Port:       port,
+			User:       user,
+			AuthMethod: authMethod,
+			KeyPath:    keyPath,
+			RemotePath: remotePath,
+		}
+		doSSHConnect(profile, password)
+	})
+
+	form.AddButton("Speichern", func() {
+		profileName := form.GetFormItemByLabel("Profilname").(*tview.InputField).GetText()
+		host := form.GetFormItemByLabel("Host").(*tview.InputField).GetText()
+		port := form.GetFormItemByLabel("Port").(*tview.InputField).GetText()
+		user := form.GetFormItemByLabel("Benutzer").(*tview.InputField).GetText()
+		_, authOpt := form.GetFormItemByLabel("Authentifizierung").(*tview.DropDown).GetCurrentOption()
+		keyPath := form.GetFormItemByLabel("Key-Pfad").(*tview.InputField).GetText()
+		password := form.GetFormItemByLabel("Passwort/Passphrase").(*tview.InputField).GetText()
+		remotePath := form.GetFormItemByLabel("Remote-Pfad").(*tview.InputField).GetText()
+		masterPass := form.GetFormItemByLabel("Master-Passwort (für Speichern)").(*tview.InputField).GetText()
+
+		if profileName == "" {
+			showMessage("Fehler", "Profilname ist erforderlich zum Speichern.")
+			return
+		}
+		if host == "" || user == "" {
+			showMessage("Fehler", "Host und Benutzer sind Pflichtfelder.")
+			return
+		}
+		if port == "" {
+			port = "22"
 		}
 
 		authMethod := "key"
@@ -669,60 +1041,296 @@ func buildSSHForm() tview.Primitive {
 			authMethod = "password"
 		}
 
-		sshConn = &SSHConnection{
+		profile := SSHProfile{
+			Name:       profileName,
 			Host:       host,
 			Port:       port,
 			User:       user,
 			AuthMethod: authMethod,
-			Password:   password,
 			KeyPath:    keyPath,
 			RemotePath: remotePath,
 		}
 
-		statusText.SetText("[#fabd2f]⏳ Verbinde...")
-		app.ForceDraw()
-
-		if err := sshConn.Connect(); err != nil {
-			statusText.SetText(fmt.Sprintf("[#fb4934]✕ Verbindung fehlgeschlagen:\n%s", err.Error()))
-			sshConn = nil
-			return
+		// Passwort verschlüsseln wenn vorhanden
+		if password != "" {
+			if masterPass == "" {
+				showMessage("Fehler", "Master-Passwort wird benötigt, um das Passwort verschlüsselt zu speichern.")
+				return
+			}
+			encPass, salt, err := encryptPassword(password, masterPass)
+			if err != nil {
+				showMessage("Fehler", "Verschlüsselung fehlgeschlagen: "+err.Error())
+				return
+			}
+			profile.EncPass = encPass
+			profile.Salt = salt
 		}
 
-		// Prüfe ob Remote-Pfad existiert
-		isDir, err := sshConn.StatDir(remotePath)
-		if err != nil || !isDir {
-			statusText.SetText(fmt.Sprintf("[#fb4934]✕ Remote-Pfad nicht gefunden: %s", remotePath))
-			sshConn.Close()
-			sshConn = nil
-			return
+		if editIdx >= 0 && editIdx < len(sshProfiles.Profiles) {
+			sshProfiles.Profiles[editIdx] = profile
+		} else {
+			sshProfiles.Profiles = append(sshProfiles.Profiles, profile)
 		}
 
-		connMode = ConnSSH
-		loadAll()
-		statusText.SetText(fmt.Sprintf("[#b8bb26]● Verbunden mit %s@%s:%s\n[#a89984]Remote-Pfad: %s\n[#b8bb26]Dateien geladen!",
-			user, host, port, remotePath))
+		if err := saveSSHProfiles(); err != nil {
+			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
+			return
+		}
+		showMessage("Gespeichert", fmt.Sprintf("Profil \"%s\" wurde gespeichert.", profileName))
 	})
 
-	if connMode == ConnSSH {
-		form.AddButton("Trennen", func() {
-			if sshConn != nil {
-				sshConn.Close()
-			}
-			sshConn = nil
-			connMode = ConnLocal
-			loadAll()
-			statusText.SetText("[#a89984]SSH-Verbindung getrennt. Lokaler Modus aktiv.")
-		})
-	}
-
 	addFormEscape(form, func() {
-		navigateTo("main", buildMainMenu)
+		navigateTo("ssh", buildSSHList)
 	})
 
 	layout := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(form, 0, 1, true).
-		AddItem(statusText, 5, 0, false).
-		AddItem(statusBar("Tab: Nächstes Feld │ Enter: Verbinden │ Esc: Zurück"), 1, 0, false)
+		AddItem(statusText, 3, 0, false).
+		AddItem(statusBar("Tab: Nächstes Feld │ Esc: Zurück"), 1, 0, false)
+
+	return layout
+}
+
+// ===== Theme Editor =====
+
+// Gruvbox-Default-Werte als Referenz
+var themeDefaults = map[string]string{
+	"bg": "#282828", "bg_panel": "#1d2021", "bg_card": "#3c3836", "bg_card_hover": "#504945",
+	"green": "#b8bb26", "green_dim": "#98971a",
+	"text": "#ebdbb2", "text_dim": "#a89984", "text_muted": "#665c54",
+	"border": "#3c3836", "cyan": "#83a598", "yellow": "#fabd2f", "orange": "#fe8019", "red": "#fb4934",
+	"light_bg": "#fbf1c7", "light_bg_panel": "#f2e5bc", "light_bg_card": "#ebdbb2",
+	"light_green": "#79740e", "light_text": "#3c3836", "light_text_dim": "#504945",
+}
+
+type themeField struct {
+	Label    string
+	Key      string
+	GetVal   func() string
+	SetVal   func(string)
+}
+
+func buildThemeEditor() tview.Primitive {
+	list := styledList()
+	list.SetTitle(" 🎨 Theme Editor ")
+
+	t := &config.Theme
+
+	fields := []themeField{
+		{"Hintergrund", "bg", func() string { return t.Bg }, func(v string) { t.Bg = v }},
+		{"Hintergrund Panel", "bg_panel", func() string { return t.BgPanel }, func(v string) { t.BgPanel = v }},
+		{"Karten", "bg_card", func() string { return t.BgCard }, func(v string) { t.BgCard = v }},
+		{"Karten Hover", "bg_card_hover", func() string { return t.BgCardHover }, func(v string) { t.BgCardHover = v }},
+		{"Akzent (Grün)", "green", func() string { return t.Green }, func(v string) { t.Green = v }},
+		{"Akzent Dunkel", "green_dim", func() string { return t.GreenDim }, func(v string) { t.GreenDim = v }},
+		{"Schrift", "text", func() string { return t.Text }, func(v string) { t.Text = v }},
+		{"Schrift Gedämpft", "text_dim", func() string { return t.TextDim }, func(v string) { t.TextDim = v }},
+		{"Schrift Dezent", "text_muted", func() string { return t.TextMuted }, func(v string) { t.TextMuted = v }},
+		{"Rahmen", "border", func() string { return t.Border }, func(v string) { t.Border = v }},
+		{"Cyan", "cyan", func() string { return t.Cyan }, func(v string) { t.Cyan = v }},
+		{"Gelb", "yellow", func() string { return t.Yellow }, func(v string) { t.Yellow = v }},
+		{"Orange", "orange", func() string { return t.Orange }, func(v string) { t.Orange = v }},
+		{"Rot", "red", func() string { return t.Red }, func(v string) { t.Red = v }},
+		{"Light: Hintergrund", "light_bg", func() string { return t.LightBg }, func(v string) { t.LightBg = v }},
+		{"Light: Panel", "light_bg_panel", func() string { return t.LightBgPanel }, func(v string) { t.LightBgPanel = v }},
+		{"Light: Karten", "light_bg_card", func() string { return t.LightBgCard }, func(v string) { t.LightBgCard = v }},
+		{"Light: Akzent", "light_green", func() string { return t.LightGreen }, func(v string) { t.LightGreen = v }},
+		{"Light: Schrift", "light_text", func() string { return t.LightText }, func(v string) { t.LightText = v }},
+		{"Light: Schrift Dim", "light_text_dim", func() string { return t.LightTextDim }, func(v string) { t.LightTextDim = v }},
+	}
+
+	for _, f := range fields {
+		field := f
+		currentVal := field.GetVal()
+		defaultVal := themeDefaults[field.Key]
+		displayVal := currentVal
+		if displayVal == "" {
+			displayVal = "[#665c54]Standard: " + defaultVal
+		} else {
+			displayVal = "[" + displayVal + "]██ " + displayVal
+		}
+		list.AddItem(
+			fmt.Sprintf("[#83a598]%s", field.Label),
+			displayVal,
+			0,
+			func() {
+				navigateTo("theme-color", func() tview.Primitive {
+					return buildThemeColorPicker(field.Label, field.Key, field.GetVal, field.SetVal)
+				})
+			},
+		)
+	}
+
+	// Gitter-Optionen
+	gridShow := true
+	if t.GridShow != nil {
+		gridShow = *t.GridShow
+	}
+	gridLabel := "[#b8bb26]AN"
+	if !gridShow {
+		gridLabel = "[#fb4934]AUS"
+	}
+	gridOpacity := t.GridOpacity
+	if gridOpacity == "" {
+		gridOpacity = "0.25"
+	}
+
+	list.AddItem(fmt.Sprintf("[#fabd2f]Gitter-Muster: %s [#a89984](Opacity: %s)", gridLabel, gridOpacity),
+		"Enter: Umschalten │ o: Opacity ändern", 'g', func() {
+			newVal := !gridShow
+			t.GridShow = &newVal
+			navigateTo("theme", buildThemeEditor)
+		})
+
+	list.AddItem("[#b8bb26]💾 Theme speichern", "", 0, func() {
+		if err := saveJSON("config.json", config); err != nil {
+			showMessage("Fehler", err.Error())
+		} else {
+			updateIndexHTML(config)
+			showMessage("Gespeichert", "Theme wurde gespeichert.")
+		}
+	})
+
+	list.AddItem("[#fb4934]↺ Alle auf Standard zurücksetzen", "", 0, func() {
+		showConfirm("Zurücksetzen", "Alle Theme-Farben auf Gruvbox-Standard zurücksetzen?", func() {
+			config.Theme = ConfigTheme{}
+			if err := saveJSON("config.json", config); err != nil {
+				showMessage("Fehler", err.Error())
+			} else {
+				updateIndexHTML(config)
+				navigateTo("theme", buildThemeEditor)
+				showMessage("Zurückgesetzt", "Alle Farben auf Standard.")
+			}
+		})
+	})
+
+	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			navigateTo("main", buildMainMenu)
+			return nil
+		}
+		if event.Rune() == 'o' {
+			// Opacity ändern
+			navigateTo("theme-opacity", func() tview.Primitive {
+				opForm := styledForm()
+				opForm.SetTitle(" Gitter-Opacity ")
+				currentOp := t.GridOpacity
+				if currentOp == "" {
+					currentOp = "0.25"
+				}
+				opForm.AddInputField("Opacity (0.0 - 1.0)", currentOp, 10, nil, nil)
+				opForm.AddButton("Zurück", func() {
+					navigateTo("theme", buildThemeEditor)
+				})
+				opForm.AddButton("Speichern", func() {
+					t.GridOpacity = opForm.GetFormItemByLabel("Opacity (0.0 - 1.0)").(*tview.InputField).GetText()
+					navigateTo("theme", buildThemeEditor)
+				})
+				addFormEscape(opForm, func() {
+					navigateTo("theme", buildThemeEditor)
+				})
+				return opForm
+			})
+			return nil
+		}
+		return event
+	})
+
+	layout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(list, 0, 1, true).
+		AddItem(statusBar("Enter: Farbe ändern │ g: Gitter An/Aus │ o: Opacity │ Esc: Zurück"), 1, 0, false)
+
+	return layout
+}
+
+func buildThemeColorPicker(label, key string, getVal func() string, setVal func(string)) tview.Primitive {
+	form := styledForm()
+	form.SetTitle(fmt.Sprintf(" 🎨 %s ", label))
+
+	currentVal := getVal()
+	defaultVal := themeDefaults[key]
+	if currentVal == "" {
+		currentVal = defaultVal
+	}
+
+	form.AddInputField("Hex-Farbcode", currentVal, 10, nil, nil)
+
+	// Farbpalette als Table
+	palCols := 5
+	palTable := tview.NewTable()
+	palTable.SetBackgroundColor(tcell.ColorDefault)
+	palTable.SetBorder(true)
+	palTable.SetBorderColor(tcell.GetColor(themeDefaults["bg_card"]))
+	palTable.SetTitle(" Palette (Enter = wählen) ")
+	palTable.SetTitleColor(tcell.GetColor(themeDefaults["green"]))
+	palTable.SetSelectable(true, true)
+
+	for i, pc := range colorPalette {
+		row := i / palCols
+		col := i % palCols
+		r, g, b := hexToRGB(pc.Hex)
+		cell := tview.NewTableCell(fmt.Sprintf(" %s ", pc.Name)).
+			SetTextColor(tcell.NewRGBColor(r, g, b)).
+			SetBackgroundColor(tcell.ColorDefault).
+			SetAlign(tview.AlignCenter)
+		palTable.SetCell(row, col, cell)
+	}
+
+	palTable.SetSelectedFunc(func(row, col int) {
+		idx := row*palCols + col
+		if idx < len(colorPalette) {
+			form.GetFormItemByLabel("Hex-Farbcode").(*tview.InputField).SetText(colorPalette[idx].Hex)
+		}
+	})
+
+	// Tab-Cycling
+	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			navigateTo("theme", buildThemeEditor)
+			return nil
+		}
+		if event.Key() == tcell.KeyTab {
+			_, btnIdx := form.GetFocusedItemIndex()
+			if btnIdx == form.GetButtonCount()-1 {
+				app.SetFocus(palTable)
+				return nil
+			}
+		}
+		return event
+	})
+	palTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			navigateTo("theme", buildThemeEditor)
+			return nil
+		}
+		if event.Key() == tcell.KeyTab || event.Key() == tcell.KeyBacktab {
+			app.SetFocus(form)
+			return nil
+		}
+		return event
+	})
+
+	form.AddButton("Zurück", func() {
+		navigateTo("theme", buildThemeEditor)
+	})
+	form.AddButton("Übernehmen", func() {
+		hex := form.GetFormItemByLabel("Hex-Farbcode").(*tview.InputField).GetText()
+		if hex != "" && hex[0] != '#' {
+			hex = "#" + hex
+		}
+		setVal(hex)
+		navigateTo("theme", buildThemeEditor)
+	})
+	form.AddButton("Standard", func() {
+		setVal("")
+		navigateTo("theme", buildThemeEditor)
+	})
+
+	palHeight := (len(colorPalette)+palCols-1)/palCols + 2
+	layout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(form, 7, 0, true).
+		AddItem(palTable, palHeight, 0, false).
+		AddItem(statusBar("Hex eingeben oder Farbe aus Palette wählen │ Tab: Palette │ Esc: Zurück"), 1, 0, false)
 
 	return layout
 }
@@ -736,6 +1344,8 @@ func buildConfigEditor() tview.Primitive {
 	form.AddInputField("Name", config.Name, 40, nil, func(text string) { config.Name = text })
 	form.AddInputField("Initialen", config.Initials, 10, nil, func(text string) { config.Initials = text })
 	form.AddInputField("Seitentitel", config.Seitentitel, 50, nil, func(text string) { config.Seitentitel = text })
+	form.AddInputField("Meta-Beschreibung", config.Beschreibung, 60, nil, func(text string) { config.Beschreibung = text })
+	form.AddInputField("Copyright Jahr", config.CopyrightJahr, 10, nil, func(text string) { config.CopyrightJahr = text })
 	form.AddInputField("Jobtitel", config.JobTitle, 40, nil, func(text string) { config.JobTitle = text })
 	form.AddInputField("Branche", config.Branche, 40, nil, func(text string) { config.Branche = text })
 	form.AddInputField("Standort", config.Standort, 40, nil, func(text string) { config.Standort = text })
@@ -776,7 +1386,8 @@ func buildConfigEditor() tview.Primitive {
 		if err := saveJSON("config.json", config); err != nil {
 			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
 		} else {
-			showMessage("Gespeichert", "config.json wurde gespeichert.")
+			updateIndexHTML(config)
+			showMessage("Gespeichert", "config.json + index.html wurden aktualisiert.")
 		}
 	})
 
@@ -812,6 +1423,7 @@ func buildWartungEditor() tview.Primitive {
 		if err := saveJSON("config.json", config); err != nil {
 			showMessage("Fehler", "Speichern fehlgeschlagen: "+err.Error())
 		} else {
+			updateIndexHTML(config)
 			statusText := "DEAKTIVIERT"
 			if config.Wartung {
 				statusText = "AKTIVIERT"
@@ -1282,7 +1894,24 @@ func hexToRGB(hex string) (int32, int32, int32) {
 
 func buildLegalList(pageName string, data *LegalData, filename string) tview.Primitive {
 	list := styledList()
-	list.SetTitle(fmt.Sprintf(" § %s (%d Abschnitte) ", data.Titel, len(data.Abschnitte)))
+	standInfo := ""
+	if data.Stand != "" {
+		standInfo = " │ Stand: " + data.Stand
+	}
+	list.SetTitle(fmt.Sprintf(" § %s (%d Abschnitte%s) ", data.Titel, len(data.Abschnitte), standInfo))
+
+	// Stand-Eintrag als erstes Item (nur wenn Stand vorhanden oder Datenschutz)
+	if pageName == "datenschutz" {
+		standText := data.Stand
+		if standText == "" {
+			standText = "(nicht gesetzt)"
+		}
+		list.AddItem("[#fabd2f]📅 Stand: "+standText, "Stand der Datenschutzerklärung ändern", 's', func() {
+			navigateTo(pageName+"-stand", func() tview.Primitive {
+				return buildStandEditor(pageName, data, filename)
+			})
+		})
+	}
 
 	for i, section := range data.Abschnitte {
 		idx := i
@@ -1335,10 +1964,16 @@ func buildLegalList(pageName string, data *LegalData, filename string) tview.Pri
 		}
 		if event.Key() == tcell.KeyDelete || event.Rune() == 'x' {
 			idx := list.GetCurrentItem()
-			if idx >= 0 && idx < len(data.Abschnitte) {
-				sectionName := data.Abschnitte[idx].Ueberschrift
+			// Offset für Stand-Item bei Datenschutz
+			offset := 0
+			if pageName == "datenschutz" {
+				offset = 1
+			}
+			adjIdx := idx - offset
+			if adjIdx >= 0 && adjIdx < len(data.Abschnitte) {
+				sectionName := data.Abschnitte[adjIdx].Ueberschrift
 				showConfirm("Löschen", fmt.Sprintf("Abschnitt \"%s\" wirklich löschen?", sectionName), func() {
-					data.Abschnitte = append(data.Abschnitte[:idx], data.Abschnitte[idx+1:]...)
+					data.Abschnitte = append(data.Abschnitte[:adjIdx], data.Abschnitte[adjIdx+1:]...)
 					if err := saveJSON(filename, data); err != nil {
 						showMessage("Fehler", err.Error())
 					}
@@ -1357,6 +1992,34 @@ func buildLegalList(pageName string, data *LegalData, filename string) tview.Pri
 		AddItem(statusBar("Enter: Bearbeiten │ n: Neuer Abschnitt │ x: Löschen │ Esc: Zurück"), 1, 0, false)
 
 	return layout
+}
+
+func buildStandEditor(pageName string, data *LegalData, filename string) tview.Primitive {
+	form := styledForm()
+	form.SetTitle(" 📅 Stand ändern ")
+
+	form.AddInputField("Stand", data.Stand, 30, nil, func(text string) { data.Stand = text })
+
+	addFormEscape(form, func() {
+		navigateTo(pageName, func() tview.Primitive {
+			return buildLegalList(pageName, data, filename)
+		})
+	})
+
+	form.AddButton("Zurück", func() {
+		navigateTo(pageName, func() tview.Primitive {
+			return buildLegalList(pageName, data, filename)
+		})
+	})
+	form.AddButton("Speichern", func() {
+		if err := saveJSON(filename, data); err != nil {
+			showMessage("Fehler", err.Error())
+			return
+		}
+		showMessage("Gespeichert", "Stand wurde aktualisiert.")
+	})
+
+	return form
 }
 
 func buildLegalSectionEditor(pageName string, data *LegalData, filename string, index int) tview.Primitive {
@@ -1421,6 +2084,9 @@ func main() {
 
 	// Initialer Modus: lokal
 	connMode = ConnLocal
+
+	// SSH-Profile laden
+	loadSSHProfiles()
 
 	// JSON-Dateien laden
 	loadAll()

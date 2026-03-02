@@ -2,6 +2,8 @@
   "name": "Max Mustermann",
   "initials": "MM",
   "seitentitel": "Max Mustermann – Portfolio",
+  "beschreibung": "Persönliche Terminal-Website",
+  "copyright_jahr": "2026",
   "jobtitle": "Jobtitel",
   "branche": "Branche",
   "bio": "Kurze Beschreibung über dich und deine Arbeit.",

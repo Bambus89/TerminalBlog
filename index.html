@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Persönliche Terminal-Website">
-  <title>Meine Website</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23282828' width='32' height='32'/><text x='8' y='24' font-size='18' font-weight='bold' fill='%23b8bb26' font-family='monospace'>MM</text></svg>">
+  <meta name="description" content="">
+  <title></title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23282828' width='32' height='32'/><text x='8' y='24' font-size='18' font-weight='bold' fill='%23b8bb26' font-family='monospace'></text></svg>">
   
   <style>
     /* Hack Font - base64 embedded for GDPR compliance (no external requests) */
@@ -1067,13 +1067,13 @@
       <div class="content">
         <section class="hero">
           <div class="hero-logo" id="hero-logo"></div>
-          <h1 id="hero-name">Max Mustermann</h1>
-          <div class="subtitle" id="hero-subtitle">Dein Jobtitel · Deine Branche</div>
+          <h1 id="hero-name"></h1>
+          <div class="subtitle" id="hero-subtitle"></div>
           <div class="location">
             <svg class="location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
-            <span id="hero-location">Musterstadt, DE</span>
+            <span id="hero-location"></span>
           </div>
           <div class="status-badge">
             <span class="status-dot"></span>
@@ -1091,11 +1091,11 @@
             <div class="terminal-title">about.sh</div>
           </div>
           <div class="terminal-body" id="terminal-body">
-            <div class="terminal-line"><span class="prompt"><span class="prompt-user">user</span>@<span class="prompt-host">server</span> $ </span>cat about.txt</div>
+            <div class="terminal-line"><span class="prompt"><span class="prompt-user"></span>@<span class="prompt-host"></span> $ </span>cat about.txt</div>
             <div class="terminal-output" id="bio-output"></div>
-            <div class="terminal-line" style="margin-top: 20px;"><span class="prompt"><span class="prompt-user">user</span>@<span class="prompt-host">server</span> $ </span>ls skills/</div>
+            <div class="terminal-line" style="margin-top: 20px;"><span class="prompt"><span class="prompt-user"></span>@<span class="prompt-host"></span> $ </span>ls skills/</div>
             <div id="skills-output"></div>
-            <div class="terminal-line"><span class="prompt"><span class="prompt-user">user</span>@<span class="prompt-host">server</span> $ </span><span class="cursor"></span></div>
+            <div class="terminal-line"><span class="prompt"><span class="prompt-user"></span>@<span class="prompt-host"></span> $ </span><span class="cursor"></span></div>
           </div>
         </div>
 
@@ -1144,52 +1144,26 @@
 
   <script>
     var DEFAULT_CONFIG = {
-      "name": "Max Mustermann",
-      "initials": "MM",
-      "seitentitel": "Max Mustermann",
-      "jobtitle": "Dein Jobtitel",
-      "branche": "Deine Branche",
-      "bio": "Hier steht deine Beschreibung. Erzähle etwas über dich, deine Erfahrung und deine Schwerpunkte.",
-      "standort": "Musterstadt, DE",
-      "status": "online",
+      "name": "",
+      "initials": "",
+      "seitentitel": "",
+      "beschreibung": "",
+      "copyright_jahr": "",
+      "jobtitle": "",
+      "branche": "",
+      "bio": "",
+      "standort": "",
+      "status": "",
       "wartung": false,
-      "kontakt": {
-        "email": "max@example.com",
-        "telefon": "+49123456789",
-        "telefon_anzeige": "0123 456789"
-      },
-      "skills": ["Skill 1", "Skill 2", "Skill 3"],
-      "impressum": {
-        "name": "Max Mustermann",
-        "strasse": "Musterstraße 1",
-        "plz_ort": "12345 Musterstadt",
-        "land": "Deutschland",
-        "telefon": "0123 456789",
-        "email": "max@example.com"
-      },
-      "terminal": {
-        "user": "user",
-        "host": "server"
-      }
+      "kontakt": { "email": "", "telefon": "", "telefon_anzeige": "" },
+      "skills": [],
+      "impressum": { "name": "", "strasse": "", "plz_ort": "", "land": "", "telefon": "", "email": "" },
+      "terminal": { "user": "", "host": "" }
     };
 
     var DEFAULT_BLOG = {
-      "categories": [
-        { "id": "tech", "name": "Technik", "color": "#b8bb26" },
-        { "id": "projekt", "name": "Projekte", "color": "#83a598" },
-        { "id": "alltag", "name": "Alltag", "color": "#fabd2f" }
-      ],
-      "posts": [
-        {
-          "id": "willkommen",
-          "title": "Willkommen",
-          "date": "01-03-2026",
-          "category": ["alltag"],
-          "tags": ["start"],
-          "excerpt": "Der erste Beitrag auf meinem neuen Blog.",
-          "content": "## Hallo Welt\n\nDas ist ein Beispiel-Blogpost. Bearbeite oder lösche ihn über den Site Manager."
-        }
-      ]
+      "categories": [],
+      "posts": []
     };
 
     var currentConfig = null;
@@ -1222,7 +1196,7 @@
       window.scrollTo(0, 0);
       currentPage = page;
       
-      var siteTitle = (currentConfig && currentConfig.seitentitel) ? currentConfig.seitentitel : (currentConfig ? currentConfig.name : 'Max Mustermann');
+      var siteTitle = (currentConfig && currentConfig.seitentitel) ? currentConfig.seitentitel : (currentConfig ? currentConfig.name : '');
       var titles = {
         'home': siteTitle,
         'blog': 'Blog - ' + siteTitle,
@@ -1338,7 +1312,13 @@
       }
       document.getElementById('contact-grid').innerHTML = contactHtml;
 
-      var year = new Date().getFullYear();
+      // Meta-Description dynamisch setzen
+      var metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc && cfg.beschreibung) {
+        metaDesc.setAttribute('content', cfg.beschreibung);
+      }
+
+      var year = cfg.copyright_jahr || new Date().getFullYear();
       document.getElementById('footer-copyright').textContent = '© ' + year + ' ' + escapeHtml(cfg.name) + '. Alle Rechte vorbehalten.';
 
       // Seitentitel aktualisieren
@@ -1350,6 +1330,73 @@
         'datenschutz': 'Datenschutz - ' + siteTitle
       };
       document.title = pageTitles[currentPage] || siteTitle;
+
+      // Theme-Farben aus config anwenden
+      if (cfg.theme) {
+        var t = cfg.theme;
+        var root = document.documentElement.style;
+        var themeMap = {
+          'bg': t.bg, 'bg-panel': t.bg_panel, 'bg-card': t.bg_card,
+          'bg-card-hover': t.bg_card_hover, 'green': t.green, 'green-dim': t.green_dim,
+          'text': t.text, 'text-dim': t.text_dim, 'text-muted': t.text_muted,
+          'border': t.border, 'cyan': t.cyan, 'yellow': t.yellow,
+          'orange': t.orange, 'red': t.red
+        };
+        for (var key in themeMap) {
+          if (themeMap[key]) root.setProperty('--' + key, themeMap[key]);
+        }
+        // Glow-Farben aus green ableiten
+        if (t.green) {
+          var g = t.green;
+          var r = parseInt(g.slice(1,3),16), gv = parseInt(g.slice(3,5),16), b = parseInt(g.slice(5,7),16);
+          root.setProperty('--green-glow', 'rgba(' + r + ',' + gv + ',' + b + ',0.12)');
+          root.setProperty('--green-glow-strong', 'rgba(' + r + ',' + gv + ',' + b + ',0.22)');
+        }
+        // Gitter-Opacity
+        if (t.grid_opacity) {
+          var gridEl = document.querySelector('body::before') || null;
+          var style = document.getElementById('dynamic-grid-style');
+          if (!style) {
+            style = document.createElement('style');
+            style.id = 'dynamic-grid-style';
+            document.head.appendChild(style);
+          }
+          var gridDisplay = (t.grid_show === false) ? 'none' : 'block';
+          style.textContent = 'body::before { opacity: ' + t.grid_opacity + ' !important; display: ' + gridDisplay + ' !important; }';
+        } else if (t.grid_show === false) {
+          var style = document.getElementById('dynamic-grid-style');
+          if (!style) {
+            style = document.createElement('style');
+            style.id = 'dynamic-grid-style';
+            document.head.appendChild(style);
+          }
+          style.textContent = 'body::before { display: none !important; }';
+        }
+        // Light-Mode Overrides
+        if (t.light_bg || t.light_green || t.light_text) {
+          var lightStyle = document.getElementById('dynamic-light-style');
+          if (!lightStyle) {
+            lightStyle = document.createElement('style');
+            lightStyle.id = 'dynamic-light-style';
+            document.head.appendChild(lightStyle);
+          }
+          var css = '[data-theme="light"] {';
+          if (t.light_bg) css += ' --bg: ' + t.light_bg + ';';
+          if (t.light_bg_panel) css += ' --bg-panel: ' + t.light_bg_panel + ';';
+          if (t.light_bg_card) css += ' --bg-card: ' + t.light_bg_card + ';';
+          if (t.light_green) {
+            css += ' --green: ' + t.light_green + ';';
+            var lg = t.light_green;
+            var lr = parseInt(lg.slice(1,3),16), lgv = parseInt(lg.slice(3,5),16), lb = parseInt(lg.slice(5,7),16);
+            css += ' --green-glow: rgba(' + lr + ',' + lgv + ',' + lb + ',0.10);';
+            css += ' --green-glow-strong: rgba(' + lr + ',' + lgv + ',' + lb + ',0.18);';
+          }
+          if (t.light_text) css += ' --text: ' + t.light_text + ';';
+          if (t.light_text_dim) css += ' --text-dim: ' + t.light_text_dim + ';';
+          css += ' }';
+          lightStyle.textContent = css;
+        }
+      }
     }
 
     function renderMarkdown(text) {
@@ -1556,9 +1603,8 @@
     }
 
     // ===== Impressum + Datenschutz aus JSON rendern =====
-    var DEFAULT_IMPRESSUM = {"titel":"Impressum","abschnitte":[{"ueberschrift":"Verantwortlich","inhalt":"{{impressum.name}}\n{{impressum.strasse}}\n{{impressum.plz_ort}}\n{{impressum.land}}"},{"ueberschrift":"Kontakt","inhalt":"Telefon: {{impressum.telefon}}\nE-Mail: {{impressum.email}}"},{"ueberschrift":"Haftung für Inhalte","inhalt":"Als Diensteanbieter bin ich gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 TMG bin ich als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen oder nach Umständen zu forschen, die auf eine rechtswidrige Tätigkeit hinweisen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung von Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt."},{"ueberschrift":"Haftung für Links","inhalt":"Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte ich keinen Einfluss habe. Deshalb kann ich für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich. Eine permanente inhaltliche Kontrolle der verlinkten Seiten ist jedoch ohne konkrete Anhaltspunkte einer Rechtsverletzung nicht zumutbar. Bei Bekanntwerden von Rechtsverletzungen werde ich derartige Links umgehend entfernen."},{"ueberschrift":"Urheberrecht","inhalt":"Die durch den Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers."},{"ueberschrift":"Streitschlichtung","inhalt":"Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: [https://consumer-redress.ec.europa.eu/index_de](https://consumer-redress.ec.europa.eu/index_de)"}]};
-
-    var DEFAULT_DATENSCHUTZ = {"titel":"Datenschutzerklärung","stand":"März 2026","abschnitte":[{"nr":"1","ueberschrift":"Verantwortlicher","inhalt":"{{impressum.name}}\n{{impressum.strasse}}\n{{impressum.plz_ort}}\nE-Mail: {{impressum.email}}"},{"nr":"2","ueberschrift":"Allgemeine Hinweise zum Datenschutz","inhalt":"Der Schutz Ihrer persönlichen Daten ist mir ein wichtiges Anliegen. Diese Datenschutzerklärung informiert Sie darüber, wie Ihre personenbezogenen Daten auf dieser Website verarbeitet werden.\n\n**Gesetzliche Grundlagen:** Die Verarbeitung persönlicher Daten erfolgt gemäß Art. 6 DSGVO. Soweit keine spezifische Rechtsgrundlage vorhanden ist, basiert die Verarbeitung auf berechtigtem Interesse (Art. 6 Abs. 1 f DSGVO).\n\n**SSL/TLS-Verschlüsselung:** Diese Website nutzt SSL/TLS-Verschlüsselung zum Schutz Ihrer Daten."},{"nr":"3","ueberschrift":"Server-Logfiles","inhalt":"Bei der Nutzung dieser Website werden automatisch Informationen erfasst, die auf dem eigenen, selbst betriebenen Server gespeichert werden. Dies umfasst: IP-Adresse, Datum/Uhrzeit des Zugriffs, Zugriffsziel, HTTP-Statuscode und Referrer. Diese Daten werden nach 30 Tagen automatisch gelöscht und dienen ausschließlich der Fehlerdiagnose und Sicherheit. Eine Zusammenführung mit personenbezogenen Daten erfolgt nicht."},{"nr":"4","ueberschrift":"Kontaktaufnahme","inhalt":"Bei Kontakt per E-Mail oder Telefon werden Ihre Daten nur zur Beantwortung Ihrer Anfrage verarbeitet und anschließend gelöscht, sofern keine gesetzlichen Aufbewahrungspflichten bestehen."},{"nr":"5","ueberschrift":"Keine externen Ressourcen","inhalt":"Diese Website lädt keine Inhalte von externen Servern (wie CDN, Web-Analytics, Social-Media-Tracking usw.). Alle Ressourcen sind selbst gehostet."},{"nr":"6","ueberschrift":"Keine Cookies / Lokale Speicherung","inhalt":"Diese Website setzt keine Cookies ein. Zur Speicherung Ihrer Farbmodus-Einstellung (hell/dunkel) wird ausschließlich der sogenannte localStorage Ihres Browsers verwendet. Dabei handelt es sich um eine rein lokale Speicherung auf Ihrem Endgerät – die gespeicherten Daten werden zu keinem Zeitpunkt an einen Server übermittelt. Diese Speicherung ist technisch erforderlich, um Ihre Darstellungspräferenz beim nächsten Besuch wiederherzustellen (§ 25 Abs. 2 TDDDG). Sie können den localStorage jederzeit über die Einstellungen Ihres Browsers löschen."},{"nr":"7","ueberschrift":"Kein Tracking","inhalt":"Es werden keine Tracking-Tools wie Google Analytics, Matomo oder ähnliche Services verwendet."},{"nr":"8","ueberschrift":"Kein Profiling","inhalt":"Es findet kein automatisiertes Profiling oder Erstellen von Nutzungsprofilen statt."},{"nr":"9","ueberschrift":"Keine Weitergabe","inhalt":"Ihre Daten werden nicht an Dritte weitergegeben, es sei denn, dies ist erforderlich zur Erfüllung rechtlicher Verpflichtungen."},{"nr":"10","ueberschrift":"Rechte der Betroffenen","inhalt":"Sie haben das Recht:\n- **Auskunft (Art. 15 DSGVO):** Sie können jederzeit eine Auskunft über Ihre bei uns gespeicherten Daten anfordern.\n- **Berichtigung (Art. 16 DSGVO):** Sie können unrichtige Daten korrigieren lassen.\n- **Löschung (Art. 17 DSGVO):** Sie können die Löschung Ihrer Daten verlangen (Recht auf Vergessenwerden).\n- **Einschränkung (Art. 18 DSGVO):** Sie können die Verarbeitung Ihrer Daten einschränken lassen.\n- **Datenübertragbarkeit (Art. 20 DSGVO):** Sie können Ihre Daten in maschinenlesbarer Form erhalten.\n- **Widerspruch (Art. 21 DSGVO):** Sie können gegen die Verarbeitung Ihrer Daten Widerspruch einlegen."},{"nr":"11","ueberschrift":"Beschwerderecht","inhalt":"Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren, falls Sie der Ansicht sind, dass die Verarbeitung Ihrer Daten gegen die DSGVO verstößt."},{"nr":"12","ueberschrift":"Änderungen dieser Datenschutzerklärung","inhalt":"Diese Datenschutzerklärung kann jederzeit geändert werden. Die jeweils gültige Fassung wird auf dieser Website veröffentlicht."},{"nr":"13","ueberschrift":"Kontakt bei Datenschutzfragen","inhalt":"Bei Fragen zum Datenschutz kontaktieren Sie uns unter:\n{{impressum.email}}\n{{impressum.telefon}}"}]};
+    var DEFAULT_IMPRESSUM = {"titel":"Impressum","abschnitte":[]};
+    var DEFAULT_DATENSCHUTZ = {"titel":"Datenschutzerklärung","stand":"","abschnitte":[]};
 
     function resolveTemplates(text, cfg) {
       if (!cfg || !cfg.impressum) return text;
