@@ -223,6 +223,15 @@ make all          # Beide Linux-Architekturen
 make clean        # Aufräumen
 ```
 
+## Releases
+
+| Version | Datum | Highlights |
+|---------|-------|------------|
+| v1.2 | 3. März 2026 | Interaktiver TLS-Installer (4 Optionen: kein TLS, Certbot-Erkennung, Dateibrowser, manuelle Eingabe), Graceful TLS-Fallback bei fehlenden Zertifikaten, Platzhalter in config.json |
+| v1.0 | 2. März 2026 | Initiales Release – HTTP/HTTPS-Server, SPA-Fallback, Sicherheits-Header, Request-Logging, systemd-Service, interaktiver Installer |
+
+Siehe [CHANGELOG.md](CHANGELOG.md) für Details.
+
 ## Projektstruktur
 
 ```
