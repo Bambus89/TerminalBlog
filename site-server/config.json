@@ -1,6 +1,0 @@
-{
-  "webroot": "/PFAD/ZUM/WEBROOT",
-  "port": 8080,
-  "cert_file": "/PFAD/ZUM/ZERTIFIKAT.pem",
-  "key_file": "/PFAD/ZUM/PRIVKEY.pem"
-}
