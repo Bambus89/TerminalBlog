@@ -1,0 +1,71 @@
+{
+  "titel": "Datenschutzerklärung",
+  "stand": "März 2026",
+  "abschnitte": [
+    {
+      "nr": "1",
+      "ueberschrift": "Verantwortlicher",
+      "inhalt": "Verantwortlich für die Datenverarbeitung auf dieser Website:\n\n{{impressum.name}}\n{{impressum.strasse}}\n{{impressum.plz_ort}}\n{{impressum.land}}\nE-Mail: {{impressum.email}}\nTelefon: {{impressum.telefon}}"
+    },
+    {
+      "nr": "2",
+      "ueberschrift": "Hosting",
+      "inhalt": "Diese Website wird auf einem eigenen Server betrieben. Bei jedem Zugriff werden vom Webserver automatisch Daten in sogenannten Server-Logfiles erfasst. Diese umfassen: IP-Adresse, Datum und Uhrzeit des Zugriffs, angeforderte Datei, Referrer-URL, verwendeter Browser und Betriebssystem. Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO zur Sicherstellung eines störungsfreien Betriebs."
+    },
+    {
+      "nr": "3",
+      "ueberschrift": "Keine externen Ressourcen",
+      "inhalt": "Diese Website lädt keine externen Ressourcen wie Schriftarten, Stylesheets, Skripte oder Tracking-Dienste von fremden Servern. Alle verwendeten Dateien – einschließlich Schriftarten – sind lokal auf dem eigenen Server gespeichert. Es werden keine Verbindungen zu Google Fonts, CDNs oder ähnlichen Drittanbietern hergestellt."
+    },
+    {
+      "nr": "4",
+      "ueberschrift": "Keine Cookies",
+      "inhalt": "Diese Website setzt keine Cookies. Es werden weder eigene noch Cookies von Drittanbietern verwendet."
+    },
+    {
+      "nr": "5",
+      "ueberschrift": "Kein Tracking und keine Analyse",
+      "inhalt": "Es werden keine Tracking- oder Analysewerkzeuge wie Google Analytics, Matomo oder vergleichbare Dienste eingesetzt. Das Verhalten der Besucher wird nicht ausgewertet."
+    },
+    {
+      "nr": "6",
+      "ueberschrift": "Lokale Speicherung (localStorage)",
+      "inhalt": "Diese Website nutzt die localStorage-Funktion des Browsers, um die vom Benutzer gewählte Darstellungsoption (helles oder dunkles Farbschema) zu speichern. Diese Speicherung erfolgt ausschließlich lokal im Browser des Nutzers. Es werden keine Daten an den Server oder an Dritte übermittelt. Die Nutzung von localStorage ist gemäß § 25 Abs. 2 TDDDG ohne Einwilligung zulässig, da sie zur Erbringung der vom Nutzer gewünschten Funktion technisch erforderlich ist. Der gespeicherte Wert kann jederzeit über die Browser-Einstellungen gelöscht werden."
+    },
+    {
+      "nr": "7",
+      "ueberschrift": "Kontaktaufnahme",
+      "inhalt": "Wenn Sie mich per E-Mail kontaktieren, werden Ihre Angaben zur Bearbeitung der Anfrage und für den Fall von Anschlussfragen gespeichert. Diese Daten gebe ich nicht ohne Ihre Einwilligung weiter. Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO."
+    },
+    {
+      "nr": "8",
+      "ueberschrift": "Ihre Rechte",
+      "inhalt": "Sie haben gegenüber mir folgende Rechte hinsichtlich der Sie betreffenden personenbezogenen Daten: Recht auf Auskunft (Art. 15 DSGVO), Recht auf Berichtigung (Art. 16 DSGVO), Recht auf Löschung (Art. 17 DSGVO), Recht auf Einschränkung der Verarbeitung (Art. 18 DSGVO), Recht auf Datenübertragbarkeit (Art. 20 DSGVO), Recht auf Widerspruch gegen die Verarbeitung (Art. 21 DSGVO)."
+    },
+    {
+      "nr": "9",
+      "ueberschrift": "Beschwerderecht",
+      "inhalt": "Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde über die Verarbeitung Ihrer personenbezogenen Daten zu beschweren."
+    },
+    {
+      "nr": "10",
+      "ueberschrift": "SSL-/TLS-Verschlüsselung",
+      "inhalt": "Diese Seite nutzt aus Sicherheitsgründen eine SSL- bzw. TLS-Verschlüsselung. Eine verschlüsselte Verbindung erkennen Sie daran, dass die Adresszeile des Browsers von \"http://\" auf \"https://\" wechselt und an dem Schloss-Symbol in Ihrer Browserzeile."
+    },
+    {
+      "nr": "11",
+      "ueberschrift": "Änderung dieser Datenschutzerklärung",
+      "inhalt": "Ich behalte mir vor, diese Datenschutzerklärung anzupassen, damit sie stets den aktuellen rechtlichen Anforderungen entspricht oder um Änderungen an meinen Leistungen umzusetzen."
+    },
+    {
+      "nr": "12",
+      "ueberschrift": "Keine Weitergabe an Dritte",
+      "inhalt": "Eine Weitergabe Ihrer personenbezogenen Daten an Dritte erfolgt nicht, es sei denn, ich bin gesetzlich dazu verpflichtet oder Sie haben ausdrücklich eingewilligt."
+    },
+    {
+      "nr": "13",
+      "ueberschrift": "Minderjährigenschutz",
+      "inhalt": "Diese Website richtet sich nicht an Personen unter 16 Jahren. Personenbezogene Daten von Kindern werden wissentlich nicht erhoben."
+    }
+  ]
+}

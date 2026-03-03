@@ -1,0 +1,40 @@
+{
+  "name": "Max Mustermann",
+  "initials": "MM",
+  "seitentitel": "Max Mustermann – Portfolio",
+  "beschreibung": "Persönliche Terminal-Website",
+  "copyright_jahr": "2026",
+  "jobtitle": "Jobtitel",
+  "branche": "Branche",
+  "bio": "Kurze Beschreibung über dich und deine Arbeit.",
+  "standort": "Stadt, DE",
+  "status": "online",
+  "wartung": false,
+  "wartung_text": "Bin gleich wieder da – kurze Wartung.",
+
+  "kontakt": {
+    "email": "mail@example.de",
+    "telefon": "+49123456789",
+    "telefon_anzeige": "0123 456789"
+  },
+
+  "skills": [
+    "Skill 1",
+    "Skill 2",
+    "Skill 3"
+  ],
+
+  "impressum": {
+    "name": "Max Mustermann",
+    "strasse": "Musterstraße 1",
+    "plz_ort": "12345 Musterstadt",
+    "land": "Deutschland",
+    "telefon": "0123 456789",
+    "email": "mail@example.de"
+  },
+
+  "terminal": {
+    "user": "user",
+    "host": "server"
+  }
+}
