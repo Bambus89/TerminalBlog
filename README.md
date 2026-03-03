@@ -1,76 +1,243 @@
-# Personal Terminal Website + Site Manager
+# site-server
 
-Eine moderne, responsive Einzelseiten-Website im Terminal-Stil mit Gruvbox-Theme, Blog-System und einer TUI-Verwaltungsoberfläche.
+Minimaler, abhängigkeitsfreier Webserver für statische Websites. Ein einzelnes Go-Binary – ideal für minimale Server, Container und VMs.
 
 ## Features
 
-### Website (`index.html`)
-- Single-File HTML5/CSS/JS – keine externen Abhängigkeiten
-- Gruvbox Dark + Light Theme mit Toggle
-- Terminal-Emulator-Design mit Hack-Font (Base64-eingebettet, DSGVO-konform)
-- Blog mit Multi-Kategorie-Support und Markdown XL Rendering
-- Impressum und Datenschutzerklärung (DSGVO-konform)
-- Wartungsmodus per config.json
-- WCAG 2.1 AA Barrierefreiheit
-- Alle Inhalte in JSON-Dateien externalisiert
-
-### Site Manager (`site-manager/`)
-- Go TUI-Anwendung im Midnight-Commander-Stil
-- Bearbeitung aller JSON-Dateien (Config, Blog, Impressum, Datenschutz)
-- Theme-Editor mit Farbpalette und Hex-Eingabe (Dark + Light Mode)
-- SSH/SFTP-Profilverwaltung mit AES-256-verschlüsselten Passwörtern
-- Status-Auswahl (online/abwesend/offline) mit farbiger Anzeige
-- Meta-Description und Seitentitel werden direkt in der HTML aktualisiert
-- Datenschutz-Stand editierbar
-- Farbpalette für Kategorie-Farben
-- Wartungsmodus Ein/Aus-Schalter
-- Document Root zur Laufzeit änderbar
+- Einzelnes Binary, keine Abhängigkeiten (nur Go-Stdlib)
+- SPA-Support (Fallback auf `index.html`)
+- Optionales TLS (Certbot / Let's Encrypt)
+- Graceful Fallback: Platzhalter-Pfade in der Config → Server startet trotzdem im HTTP-Modus
+- Sicherheits-Header (X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
+- Request-Logging via stdout / systemd-Journal
+- Konfiguration über `config.json`
+- systemd-Integration mit interaktivem Installer
+- Linux amd64 + arm64 (Raspberry Pi, ARM-Server)
 
 ## Schnellstart
 
-1. Alle Dateien auf einen Webserver legen
-2. `config.json` mit eigenen Daten füllen
-3. Fertig – die Website läuft
+```bash
+# Kompilieren
+make build
 
-### Site Manager bauen
+# Starten (mit Defaults: Port 8080, WebRoot /var/www/html)
+./site-server
+
+# Mit eigener Config
+./site-server -config /pfad/zur/config.json
+
+# Version anzeigen
+./site-server -v
+```
+
+## config.json
+
+Die mitgelieferte `config.json` enthält Platzhalter-Pfade:
+
+```json
+{
+  "webroot": "/PFAD/ZUM/WEBROOT",
+  "port": 8080,
+  "cert_file": "/PFAD/ZUM/ZERTIFIKAT.pem",
+  "key_file": "/PFAD/ZUM/PRIVKEY.pem"
+}
+```
+
+**Solange die Platzhalter-Pfade nicht auf echte Dateien zeigen, startet der Server automatisch im HTTP-Modus** und gibt eine Warnung aus. TLS wird erst aktiv, wenn beide Dateien tatsächlich existieren.
+
+### Felder
+
+| Feld | Beschreibung | Beispiel |
+|------|-------------|---------|
+| `webroot` | Verzeichnis mit den Website-Dateien | `/var/www/html` |
+| `port` | TCP-Port | `8080` oder `443` für HTTPS |
+| `cert_file` | Pfad zum TLS-Zertifikat (Fullchain) | `/etc/letsencrypt/live/example.com/fullchain.pem` |
+| `key_file` | Pfad zum privaten TLS-Schlüssel | `/etc/letsencrypt/live/example.com/privkey.pem` |
+
+Sind `cert_file` und `key_file` leer (`""`) oder zeigen auf nicht vorhandene Dateien, läuft der Server als reiner HTTP-Server.
+
+---
+
+## TLS mit Certbot (Let's Encrypt)
+
+### Schritt 1: Certbot installieren
+
+Certbot ist auf den meisten Distributionen verfügbar:
 
 ```bash
-cd site-manager
+# Debian / Ubuntu
+sudo apt install certbot
+
+# Fedora / RHEL / CentOS
+sudo dnf install certbot
+
+# Arch Linux
+sudo pacman -S certbot
+
+# Oder via Snap (distributionsunabhängig)
+sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+```
+
+### Schritt 2: Zertifikat anfordern
+
+Da der site-server ein eigener Webserver ist, nutzt man den **Standalone-Modus** von Certbot. Dabei startet Certbot kurzzeitig einen eigenen Webserver auf Port 80, um die Domain zu verifizieren.
+
+**Wichtig:** Der site-server muss während der Zertifikatsanforderung gestoppt sein (falls er auf Port 80 oder 443 läuft).
+
+```bash
+# site-server stoppen (falls er läuft)
+sudo systemctl stop site-server
+
+# Zertifikat anfordern
+sudo certbot certonly --standalone -d example.com -d www.example.com
+
+# site-server wieder starten
+sudo systemctl start site-server
+```
+
+Certbot legt die Zertifikate unter `/etc/letsencrypt/live/` ab:
+
+```
+/etc/letsencrypt/live/example.com/
+├── fullchain.pem    ← Das ist cert_file (Zertifikat + Zwischenzertifikate)
+├── privkey.pem      ← Das ist key_file  (Privater Schlüssel)
+├── cert.pem         ← (Nur das Zertifikat selbst – nicht verwenden)
+└── chain.pem        ← (Nur die Zwischenzertifikate – nicht verwenden)
+```
+
+**Wichtig:** Immer `fullchain.pem` verwenden, nicht `cert.pem`. Der Fullchain enthält sowohl das Zertifikat als auch die Zwischenzertifikate, die Browser zur Validierung brauchen.
+
+### Schritt 3: config.json anpassen
+
+Ersetze die Platzhalter durch die tatsächlichen Pfade:
+
+```json
+{
+  "webroot": "/var/www/html",
+  "port": 443,
+  "cert_file": "/etc/letsencrypt/live/example.com/fullchain.pem",
+  "key_file": "/etc/letsencrypt/live/example.com/privkey.pem"
+}
+```
+
+Ersetze `example.com` durch deine eigene Domain.
+
+### Schritt 4: Dateiberechtigungen
+
+Die Let's-Encrypt-Zertifikate gehören `root`. Der site-server braucht Leserechte:
+
+```bash
+# Option A: Den Service-User zur Gruppe ssl-cert hinzufügen (Debian/Ubuntu)
+sudo usermod -aG ssl-cert dein-user
+
+# Option B: Leserechte für die Live-Verzeichnisse setzen
+sudo chmod 750 /etc/letsencrypt/live/
+sudo chmod 750 /etc/letsencrypt/archive/
+sudo chgrp -R ssl-cert /etc/letsencrypt/live/ /etc/letsencrypt/archive/
+```
+
+Falls der Service als eigener User läuft (z.B. `www-data`):
+
+```bash
+sudo usermod -aG ssl-cert www-data
+sudo systemctl restart site-server
+```
+
+### Schritt 5: Automatische Erneuerung
+
+Certbot erneuert Zertifikate automatisch per Cron/Timer. Damit der site-server das neue Zertifikat lädt, muss er nach der Erneuerung neugestartet werden:
+
+```bash
+# Certbot-Hook einrichten
+sudo tee /etc/letsencrypt/renewal-hooks/post/restart-site-server.sh > /dev/null <<'EOF'
+#!/bin/bash
+systemctl restart site-server
+EOF
+sudo chmod +x /etc/letsencrypt/renewal-hooks/post/restart-site-server.sh
+```
+
+Erneuerung testen:
+
+```bash
+sudo certbot renew --dry-run
+```
+
+---
+
+## Betrieb ohne TLS
+
+Für lokale Nutzung, hinter einem Reverse Proxy (nginx, Caddy, Traefik) oder im Heimnetz genügt HTTP:
+
+```json
+{
+  "webroot": "/home/user/website",
+  "port": 3000
+}
+```
+
+Die Zertifikats-Felder können leer bleiben oder ganz weggelassen werden.
+
+---
+
+## Installation (Linux + systemd)
+
+```bash
+# Binary bauen
+make linux
+
+# Installer starten
+sudo ./install.sh
+```
+
+Der Installer fragt interaktiv nach:
+
+1. **Installationsverzeichnis** – wohin Binary + Config kopiert werden (Default: `/opt/site-server`)
+2. **WebRoot** – Verzeichnis mit `index.html` und den JSON-Dateien
+3. **Port** – TCP-Port für den Server
+4. **TLS-Konfiguration** – Auswahl aus vier Optionen:
+   - Kein TLS (reiner HTTP-Server)
+   - Let's Encrypt / Certbot automatisch erkennen (listet vorhandene Domains)
+   - Dateibrowser zum Navigieren und Auswählen der Zertifikatsdateien
+   - Pfade direkt eingeben
+5. **Service-Benutzer** – unter welchem User der Server läuft
+6. **Service-Name** – Name des systemd-Service (Default: `site-server`)
+
+Nach der Installation:
+
+```bash
+sudo systemctl start site-server      # Starten
+sudo systemctl stop site-server       # Stoppen
+sudo systemctl restart site-server    # Neustarten
+sudo systemctl status site-server     # Status
+sudo journalctl -u site-server -f     # Logs live verfolgen
+```
+
+## Build-Targets
+
+```bash
 make build        # Aktuelle Plattform
 make linux        # Linux amd64
-make darwin       # macOS (ARM64 + AMD64)
+make linux-arm64  # Linux arm64 (Raspberry Pi, ARM-Server)
+make all          # Beide Linux-Architekturen
+make clean        # Aufräumen
 ```
 
-### Site Manager starten
-
-```bash
-./site-manager                      # Default: /var/www/html
-./site-manager -root /pfad/zum/web  # Anderer Pfad
-```
-
-## Dateistruktur
+## Projektstruktur
 
 ```
-├── index.html          # Website (Single-File SPA)
-├── config.json         # Persönliche Daten, Skills, Kontakt
-├── blog.json           # Blog-Posts und Kategorien
-├── impressum.json      # Impressum-Abschnitte
-├── datenschutz.json    # Datenschutz-Abschnitte (§1-§13)
-├── LICENSE             # GPL-3.0
-└── site-manager/       # Go TUI-Verwaltungstool
-    ├── main.go
-    ├── go.mod
-    ├── Makefile
-    └── LICENSE         # GPL-3.0
+site-server/
+├── main.go                    # Webserver (~150 Zeilen, nur Go-Stdlib)
+├── config.json                # Konfiguration (mit Platzhaltern)
+├── install.sh                 # Interaktiver Installer mit Dateibrowser
+├── site-server.service.tpl    # systemd-Service-Template
+├── Makefile                   # Build-Targets
+├── go.mod                     # Go-Modul (keine Dependencies)
+├── CHANGELOG.md               # Versionshistorie
+├── README.md                  # Diese Datei
+└── LICENSE                    # GPL-3.0
 ```
-
-## JSON-Platzhalter
-
-In `impressum.json` und `datenschutz.json` können `{{impressum.*}}`-Platzhalter verwendet werden, die zur Laufzeit aus `config.json` aufgelöst werden:
-
-- `{{impressum.name}}`, `{{impressum.strasse}}`, `{{impressum.plz_ort}}`
-- `{{impressum.land}}`, `{{impressum.telefon}}`, `{{impressum.email}}`
 
 ## Lizenz
 
-GPL-3.0 – siehe [LICENSE](LICENSE)
+GPL-3.0 – Siehe [LICENSE](LICENSE)

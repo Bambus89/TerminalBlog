@@ -1,76 +1,26 @@
 # Changelog
 
-## v4.2 – 2. März 2026
+## v1.2.0 – 3. März 2026
 
 ### Neue Features
 
-- **Windows-Kompatibilität** – Der Site-Manager kann jetzt auch für Windows kompiliert werden (`GOOS=windows GOARCH=amd64 go build`). Der Standard-Document-Root wird OS-abhängig gesetzt: unter Linux/macOS `/var/www/html`, unter Windows das Verzeichnis der `.exe`. Alle Pfadoperationen nutzen `filepath` für plattformübergreifende Kompatibilität.
+- **Interaktiver TLS-Installer** – Die TLS-Konfiguration im Installer bietet jetzt vier Optionen: kein TLS, automatische Certbot-Erkennung (listet Domains mit Ablaufdatum), ein Terminal-Dateibrowser zum Navigieren und Auswählen von `.pem`/`.crt`/`.key`-Dateien, oder manuelle Pfadeingabe.
+- **Graceful TLS-Fallback** – Wenn `cert_file` oder `key_file` auf nicht-existierende Dateien zeigen (z.B. Platzhalter), startet der Server automatisch im HTTP-Modus statt abzustürzen. Eine Warnung wird ins Log geschrieben.
+- **Platzhalter in config.json** – Die mitgelieferte `config.json` enthält sprechende Platzhalter (`/PFAD/ZUM/WEBROOT`, `/PFAD/ZUM/ZERTIFIKAT.pem`), die zum Anpassen auffordern und im HTTP-Modus ignoriert werden.
 
-### Build-Anleitung
-
-```bash
-# Linux / macOS
-go build -o site-manager .
-
-# Windows (Cross-Compile von Linux/macOS)
-GOOS=windows GOARCH=amd64 go build -o site-manager.exe .
-
-# Windows (nativ)
-go build -o site-manager.exe .
-```
-
-## v4.1 – 2. März 2026
-
-### Neue Features
-
-- **Ctrl+S Speichern-Shortcut** – In allen Formularen und Editoren kann jetzt mit `Ctrl+S` gespeichert werden, ohne zum Speichern-Button tabben zu müssen. Der Shortcut wird in der Statusbar angezeigt. Funktioniert auch in Dialogen mit Tab-Cycling (Blog-Editor, Kategorie-Editor, Theme-Farbwähler).
-
-## v4.0 – 2. März 2026
-
-### Neue Features
-
-- **Theme-Editor** – Neuer Menüpunkt "🎨 Theme" im Site-Manager. Alle Farben der Website (Dark + Light Mode) können über eine Farbpalette oder Hex-Eingabe angepasst werden. Das Hintergrund-Gittermuster lässt sich ein-/ausschalten und in der Opacity regulieren. Zurücksetzen auf Gruvbox-Standard mit einem Klick.
-- **SSH-Profilverwaltung** – SSH/SFTP-Verbindungen können als Profile gespeichert und geladen werden. Passwörter werden mit AES-256-GCM verschlüsselt in einer `ssh.json` abgelegt (Dateiberechtigungen 0600). Beim Verbinden wird nur das Master-Passwort abgefragt. Profile können bearbeitet und gelöscht werden.
-- **Status mit Farben** – Der Online-Status ist jetzt ein Auswahlmenü (online/abwesend/offline) statt Freitext. Auf der Website blinkt der Punkt grün (online), orange (abwesend) oder rot (offline).
-- **Meta-Description dynamisch** – Das `<meta name="description">`-Tag wird aus `config.json` gelesen und vom Site-Manager direkt in der `index.html` aktualisiert (SEO-relevant).
-- **Copyright-Jahr konfigurierbar** – Das Jahr im Copyright-Footer ist über `config.json` frei wählbar.
-- **Datenschutz-Stand editierbar** – Der Stand der Datenschutzerklärung kann im Site-Manager geändert werden (Menüpunkt "📅 Stand" in der Datenschutz-Ansicht).
-
-### Verbesserungen
-
-- Site-Manager schreibt beim Speichern der Konfiguration auch `<meta description>` und `<title>` direkt in die `index.html` (nicht mehr nur zur JS-Laufzeit).
-- Alle Fallback-Daten in der `index.html` entfernt – die Seite ist ohne JSON-Dateien leer, alle Inhalte kommen ausschließlich aus den JSONs.
-- Keine personenbezogenen Daten mehr in der HTML-Datei.
-
-### Konfiguration
-
-Neue Felder in `config.json`:
-
-```json
-{
-  "beschreibung": "Seitenbeschreibung für SEO",
-  "copyright_jahr": "2026",
-  "theme": {
-    "bg": "#282828",
-    "green": "#b8bb26",
-    "text": "#ebdbb2",
-    "grid_show": true,
-    "grid_opacity": "0.25",
-    "light_bg": "#fbf1c7",
-    "light_green": "#79740e",
-    "light_text": "#3c3836"
-  }
-}
-```
-
-## v3.0 – 1. März 2026
+## v1.0.0 – 2. März 2026
 
 ### Initiales Release
 
-- Terminal-Style Website mit Gruvbox Dark/Light Theme
-- Blog-System mit Multi-Kategorie-Support und Markdown XL
-- Impressum und Datenschutzerklärung (DSGVO-konform)
-- Go TUI Site-Manager mit SSH/SFTP-Unterstützung
-- Alle Inhalte in JSON-Dateien externalisiert
-- Wartungsmodus per Konfiguration
+- Minimaler HTTP/HTTPS-Webserver als einzelnes Go-Binary (nur Stdlib, keine externen Dependencies)
+- SPA-Support mit automatischem Fallback auf `index.html`
+- Konfiguration über `config.json` (WebRoot, Port, optionale TLS-Zertifikate)
+- Sicherheits-Header: X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+- Request-Logging mit Methode, Pfad, Statuscode, Dauer und Remote-Adresse
+- Verzeichnisauflistung deaktiviert
+- Timeouts: Read 15s, Write 30s, Idle 60s
+- systemd-Service-Template mit Sicherheitshärtung (NoNewPrivileges, ProtectSystem, PrivateTmp)
+- Interaktiver Shell-Installer: fragt Installationspfad, WebRoot, Port, TLS, User/Gruppe, Service-Name ab
+- Automatische `CAP_NET_BIND_SERVICE` für Ports < 1024
+- Build-Targets: Linux amd64 und arm64
 - GPL-3.0 Lizenz
