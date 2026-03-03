@@ -37,16 +37,17 @@ file_browser() {
     local current_dir="${1:-/}"
     local filter="${2:-*}"
     local selected=""
+    FILE_BROWSER_RESULT=""
 
     while true; do
         # Verzeichnis auflösen
         current_dir="$(cd "$current_dir" 2>/dev/null && pwd)" || current_dir="/"
 
-        echo ""
-        echo -e "${BOLD}── Dateibrowser ──${NC}"
-        echo -e "${DIM}Verzeichnis:${NC} ${CYAN}${current_dir}${NC}"
-        echo -e "${DIM}Filter: ${filter} │ Eingabe: Nummer │ p = Pfad eingeben │ q = Abbrechen${NC}"
-        echo ""
+        echo "" >&2
+        echo -e "${BOLD}── Dateibrowser ──${NC}" >&2
+        echo -e "${DIM}Verzeichnis:${NC} ${CYAN}${current_dir}${NC}" >&2
+        echo -e "${DIM}Filter: ${filter} │ Eingabe: Nummer │ p = Pfad eingeben │ q = Abbrechen${NC}" >&2
+        echo "" >&2
 
         # Einträge sammeln
         local entries=()
@@ -67,7 +68,7 @@ file_browser() {
             entries+=("$dir")
             display+=("${BOLD}📁 ${dirname}/${NC}")
             idx=$((idx + 1))
-        done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -z)
+        done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | sort -z)
 
         # Dateien auflisten (gefiltert)
         while IFS= read -r -d '' file; do
@@ -78,7 +79,7 @@ file_browser() {
             entries+=("$file")
             display+=("📄 ${GREEN}${filename}${NC} ${DIM}(${filesize})${NC}")
             idx=$((idx + 1))
-        done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type f -name "$filter" 2>/dev/null | sort -z)
+        done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type f -name "$filter" -print0 2>/dev/null | sort -z)
 
         # Auch alle .pem/.crt/.key Dateien anzeigen wenn Filter *.pem ist
         if [ "$filter" = "*.pem" ]; then
@@ -98,33 +99,33 @@ file_browser() {
                         display+=("📄 ${GREEN}${filename}${NC} ${DIM}(${filesize})${NC}")
                         idx=$((idx + 1))
                     fi
-                done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type f -name "$ext" 2>/dev/null | sort -z)
+                done < <(find "$current_dir" -mindepth 1 -maxdepth 1 -type f -name "$ext" -print0 2>/dev/null | sort -z)
             done
         fi
 
         # Anzeigen
         if [ ${#entries[@]} -eq 0 ]; then
-            echo -e "  ${DIM}(keine Einträge)${NC}"
+            echo -e "  ${DIM}(keine Einträge)${NC}" >&2
         else
             for i in "${!display[@]}"; do
-                printf "  %s${BOLD}%2d${NC}%s  %b\n" "[" "$((i + 1))" "]" "${display[$i]}"
+                printf "  %s${BOLD}%2d${NC}%s  %b\n" "[" "$((i + 1))" "]" "${display[$i]}" >&2
             done
         fi
 
-        echo ""
-        ask "Auswahl: "
-        read -r choice
+        echo "" >&2
+        echo -en "${BOLD}Auswahl: ${NC}" >&2
+        read -r choice </dev/tty
 
         # Abbruch
         if [[ "$choice" =~ ^[qQ]$ ]]; then
-            echo ""
+            echo "" >&2
             return 1
         fi
 
         # Pfad manuell eingeben
         if [[ "$choice" =~ ^[pP]$ ]]; then
-            ask "Pfad eingeben: "
-            read -r manual_path
+            echo -en "${BOLD}Pfad eingeben: ${NC}" >&2
+            read -r manual_path </dev/tty
             if [ -n "$manual_path" ]; then
                 if [ -d "$manual_path" ]; then
                     current_dir="$manual_path"
@@ -133,7 +134,7 @@ file_browser() {
                     selected="$manual_path"
                     break
                 else
-                    warn "Pfad existiert nicht: $manual_path"
+                    warn "Pfad existiert nicht: $manual_path" >&2
                     continue
                 fi
             fi
@@ -142,13 +143,13 @@ file_browser() {
 
         # Nummer prüfen
         if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
-            warn "Bitte eine Nummer, 'p' oder 'q' eingeben."
+            warn "Bitte eine Nummer, 'p' oder 'q' eingeben." >&2
             continue
         fi
 
         local num=$((choice - 1))
         if [ "$num" -lt 0 ] || [ "$num" -ge "${#entries[@]}" ]; then
-            warn "Ungültige Auswahl."
+            warn "Ungültige Auswahl." >&2
             continue
         fi
 
@@ -173,8 +174,8 @@ file_browser() {
         fi
     done
 
-    echo -e "  ${GREEN}✓ Gewählt:${NC} $selected"
-    echo "$selected"
+    echo -e "  ${GREEN}✓ Gewählt:${NC} $selected" >&2
+    FILE_BROWSER_RESULT="$selected"
 }
 
 # ============================================================
@@ -280,10 +281,8 @@ configure_tls() {
                 fi
             fi
 
-            local cert_result
-            if cert_result="$(file_browser "$start_dir" "*.pem")"; then
-                # Letzte Zeile ist der Pfad
-                CERT_FILE="$(echo "$cert_result" | tail -1)"
+            if file_browser "$start_dir" "*.pem"; then
+                CERT_FILE="$FILE_BROWSER_RESULT"
             fi
 
             if [ -n "$CERT_FILE" ]; then
@@ -293,9 +292,8 @@ configure_tls() {
                 local key_start_dir
                 key_start_dir="$(dirname "$CERT_FILE")"
 
-                local key_result
-                if key_result="$(file_browser "$key_start_dir" "*.pem")"; then
-                    KEY_FILE="$(echo "$key_result" | tail -1)"
+                if file_browser "$key_start_dir" "*.pem"; then
+                    KEY_FILE="$FILE_BROWSER_RESULT"
                 fi
             fi
 
